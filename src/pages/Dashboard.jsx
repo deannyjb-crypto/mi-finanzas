@@ -1,21 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TransactionForm from "../components/TransactionForm";
 
-const formatDate = (date) => {
-    if (!date) return "";
-
-    const [year, month, day] = date.split("-");
-
-    return `${day}/${month}/${year}`;
-};
-function Dashboard() {
-  const [showForm, setShowForm] = useState(false);
-  const [transactionType, setTransactionType] = useState("expense");
-const [transactionToEdit, setTransactionToEdit] = useState(null);
-const [selectedMonth, setSelectedMonth] = useState("2026-08");
-
-  const [transactions, setTransactions] = useState([
+const initialTransactions = [
   {
+    id: "1",
     description: "Supermercado",
     amount: 45000,
     category: "Alimentación",
@@ -23,6 +11,7 @@ const [selectedMonth, setSelectedMonth] = useState("2026-08");
     type: "expense",
   },
   {
+    id: "2",
     description: "Combustible",
     amount: 50000,
     category: "Transporte",
@@ -30,543 +19,405 @@ const [selectedMonth, setSelectedMonth] = useState("2026-08");
     type: "expense",
   },
   {
+    id: "3",
     description: "Sueldo",
     amount: 2300000,
     category: "Trabajo",
     date: "2026-08-20",
     type: "income",
   },
-]);
-const monthlyTransactions = transactions.filter(
-    (transaction) => transaction.date.startsWith(selectedMonth)
-);
+];
 
-const totalIngresos = monthlyTransactions
-    .filter((transaction) => transaction.type === "income")
-    .reduce((total, transaction) => total + transaction.amount, 0);
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
-const totalGastos = monthlyTransactions
-    .filter((transaction) => transaction.type === "expense")
-    .reduce((total, transaction) => total + transaction.amount, 0);
+const formatDate = (date) => {
+  if (!date) return "";
 
-const saldoDisponible = totalIngresos - totalGastos;
-const handleEditTransaction = (transaction) => {
+  const [year, month, day] = date.split("-");
+
+  return `${day}/${month}/${year}`;
+};
+
+const getTodayMonth = () => {
+  return new Date().toISOString().slice(0, 7);
+};
+
+function Dashboard() {
+  const [showForm, setShowForm] = useState(false);
+
+  const [transactionType, setTransactionType] = useState("expense");
+
+  const [transactionToEdit, setTransactionToEdit] = useState(null);
+
+  const [selectedMonth, setSelectedMonth] = useState(getTodayMonth());
+
+  const [transactions, setTransactions] = useState(() => {
+    const savedTransactions = localStorage.getItem("mi-finanzas-transactions");
+
+    if (savedTransactions) {
+      try {
+        return JSON.parse(savedTransactions);
+      } catch {
+        return initialTransactions;
+      }
+    }
+
+    return initialTransactions;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(
+      "mi-finanzas-transactions",
+      JSON.stringify(transactions)
+    );
+  }, [transactions]);
+
+  const monthlyTransactions = useMemo(() => {
+    return transactions
+      .filter((transaction) =>
+        transaction.date.startsWith(selectedMonth)
+      )
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [transactions, selectedMonth]);
+
+  const totalIngresos = useMemo(() => {
+    return monthlyTransactions
+      .filter((transaction) => transaction.type === "income")
+      .reduce(
+        (total, transaction) => total + Number(transaction.amount),
+        0
+      );
+  }, [monthlyTransactions]);
+
+  const totalGastos = useMemo(() => {
+    return monthlyTransactions
+      .filter((transaction) => transaction.type === "expense")
+      .reduce(
+        (total, transaction) => total + Number(transaction.amount),
+        0
+      );
+  }, [monthlyTransactions]);
+
+  const saldoDisponible = totalIngresos - totalGastos;
+
+  const handleOpenForm = (type) => {
+    setTransactionType(type);
+    setTransactionToEdit(null);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setTransactionToEdit(null);
+  };
+
+  const handleSaveTransaction = (transactionData) => {
+    if (transactionToEdit) {
+      setTransactions((prevTransactions) =>
+        prevTransactions.map((transaction) =>
+          transaction.id === transactionToEdit.id
+            ? {
+                ...transactionData,
+                id: transactionToEdit.id,
+              }
+            : transaction
+        )
+      );
+    } else {
+      const newTransaction = {
+        ...transactionData,
+        id: crypto.randomUUID(),
+      };
+
+      setTransactions((prevTransactions) => [
+        ...prevTransactions,
+        newTransaction,
+      ]);
+    }
+
+    handleCloseForm();
+  };
+
+  const handleEditTransaction = (transaction) => {
     setTransactionToEdit(transaction);
     setTransactionType(transaction.type);
     setShowForm(true);
-};
-const handleDeleteTransaction = (id) => {
+  };
+
+  const handleDeleteTransaction = (id) => {
     const confirmar = window.confirm(
-        "¿Seguro que quieres eliminar esta transacción?"
+      "¿Seguro que quieres eliminar esta transacción?"
     );
 
     if (!confirmar) return;
 
-    setTransactions((prev) =>
-        prev.filter((transaction) => transaction.id !== id)
+    setTransactions((prevTransactions) =>
+      prevTransactions.filter(
+        (transaction) => transaction.id !== id
+      )
     );
-};
+  };
+
+  const handleResetData = () => {
+    const confirmar = window.confirm(
+      "Esto eliminará todas tus transacciones guardadas y restaurará los datos iniciales. ¿Deseas continuar?"
+    );
+
+    if (!confirmar) return;
+
+    setTransactions(initialTransactions);
+  };
+
+  const monthLabel = new Date(
+    `${selectedMonth}-01T12:00:00`
+  ).toLocaleDateString("es-CL", {
+    month: "long",
+    year: "numeric",
+  });
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #F8F1FF 0%, #F0E7FF 100%)",
-        color: "#38206B",
-        padding: "40px 20px",
-        fontFamily: "Arial, sans-serif",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-        }}
-      >
+    <div className="dashboard">
+      <div className="dashboard-container">
 
-        {/* ENCABEZADO */}
+        <header className="header">
+          <h1>💰 Mi Finanzas</h1>
+          <p>Tu resumen financiero personal</p>
+        </header>
 
-        <div
-          style={{
-            textAlign: "center",
-            marginBottom: "35px",
-          }}
-        >
-          <h1
-            style={{
-              fontSize: "42px",
-              margin: "0",
-              fontWeight: "700",
-              color: "#48268A",
-            }}
-          >
-            💰 Mi Finanzas
-          </h1>
+        <section className="month-selector">
+          <label htmlFor="month">
+            📅 Seleccionar mes
+          </label>
 
-          <p
-            style={{
-              fontSize: "22px",
-              color: "#7662A6",
-              marginTop: "12px",
-            }}
-          >
-            Tu resumen financiero
-          </p>
-        </div>
+          <input
+            id="month"
+            type="month"
+            value={selectedMonth}
+            onChange={(e) =>
+              setSelectedMonth(e.target.value)
+            }
+          />
+        </section>
 
+        <section className="balance-card">
+          <p>Saldo disponible</p>
 
-        {/* SALDO */}
-
-        <div
-          style={{
-            backgroundColor: "rgba(255,255,255,0.95)",
-            borderRadius: "28px",
-            padding: "45px 30px",
-            textAlign: "center",
-            boxShadow: "0 15px 40px rgba(103, 70, 160, 0.12)",
-            marginBottom: "25px",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "22px",
-              color: "#806BAF",
-              margin: "0 0 15px",
-            }}
-          >
-            Saldo disponible
-          </p>
-
-          <h2
-            style={{
-              fontSize: "58px",
-              margin: "0",
-              color: "#4B2692",
-              fontWeight: "700",
-            }}
-          >
-          ${saldoDisponible.toLocaleString("es-CL")}
-          </h2>
-        </div>
-
-
-        {/* RESUMEN */}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "22px",
-            marginBottom: "25px",
-          }}
-        >
-
-          {/* INGRESOS */}
-
-          <div
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: "22px",
-              padding: "28px",
-              boxShadow: "0 10px 30px rgba(103, 70, 160, 0.10)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "14px",
-                  backgroundColor: "#F0E6FF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                📈
-              </div>
-
-              <span
-                style={{
-                  fontSize: "20px",
-                  color: "#70589F",
-                }}
-              >
-                Ingresos
-              </span>
-            </div>
-
-            <h2
-              style={{
-                fontSize: "30px",
-                margin: "20px 0 0",
-                color: "#7950C8",
-              }}
-            >
-             ${(totalIngresos - totalGastos).toLocaleString("es-CL")}
-            </h2>
-          </div>
-
-
-          {/* GASTOS */}
-
-          <div
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: "22px",
-              padding: "28px",
-              boxShadow: "0 10px 30px rgba(103, 70, 160, 0.10)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "14px",
-                  backgroundColor: "#FFEAF0",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                📉
-              </div>
-
-              <span
-                style={{
-                  fontSize: "20px",
-                  color: "#70589F",
-                }}
-              >
-                Gastos
-              </span>
-            </div>
-
-            <h2
-              style={{
-                fontSize: "30px",
-                margin: "20px 0 0",
-                color: "#F06C91",
-              }}
-            >
-              ${totalGastos.toLocaleString("es-CL")}
-            </h2>
-          </div>
-
-
-          {/* AHORRO */}
-
-          <div
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: "22px",
-              padding: "28px",
-              boxShadow: "0 10px 30px rgba(103, 70, 160, 0.10)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-              }}
-            >
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "14px",
-                  backgroundColor: "#E3F8EF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                💵
-              </div>
-
-              <span
-                style={{
-                  fontSize: "20px",
-                  color: "#70589F",
-                }}
-              >
-                Ahorro
-              </span>
-            </div>
-
-            <h2
-              style={{
-                fontSize: "30px",
-                margin: "20px 0 0",
-                color: "#32B982",
-              }}
-            >
-          ${saldoDisponible.toLocaleString("es-CL")}
-            </h2>
-          </div>
-
-        </div>
-
-
-        {/* BOTONES */}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "22px",
-            marginBottom: "25px",
-          }}
-        >
-
-          <button
-            onClick={() => {
-    setTransactionType("income");
-    setShowForm(true);
-    }}
-            style={{
-              border: "none",
-              borderRadius: "20px",
-              padding: "22px",
-              background: "linear-gradient(135deg, #B88BEF, #9E6DE0)",
-              color: "white",
-              fontSize: "21px",
-              fontWeight: "600",
-              cursor: "pointer",
-              boxShadow: "0 10px 25px rgba(158, 109, 224, 0.25)",
-            }}
-          >
-            ＋ Agregar ingreso
-          </button>
-
-
-          <button
-  onClick={() => {
-    setTransactionType("expense");
-    setShowForm(true);
-  }}
-  style={{
-              border: "none",
-              borderRadius: "20px",
-              padding: "22px",
-              background: "linear-gradient(135deg, #F78EAD, #F26F98)",
-              color: "white",
-              fontSize: "21px",
-              fontWeight: "600",
-              cursor: "pointer",
-              boxShadow: "0 10px 25px rgba(242, 111, 152, 0.20)",
-            }}
-          >
-            − Agregar gasto
-          </button>
-
-        </div>
-
-
-        {showForm && (
-  <TransactionForm
-    type={transactionType}
-    transactionToEdit={transactionToEdit}
-    onClose={() => {
-        setShowForm(false);
-        setTransactionToEdit(null);
-    }}
-    onSave={(transaction) => {
-    setTransactions((prev) => {
-        if (transactionToEdit) {
-            return prev.map((item) =>
-                item.id === transactionToEdit.id
-                    ? transaction
-                    : item
-            );
-        }
-
-        return [transaction, ...prev];
-    });
-
-    setTransactionToEdit(null);
-    setShowForm(false);
-}}
-/>
-)}
-
-        <div
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderRadius: "24px",
-            padding: "30px",
-            boxShadow: "0 10px 30px rgba(103, 70, 160, 0.10)",
-          }}
-        >
-
-          <h2
-            style={{
-              textAlign: "center",
-              marginTop: "0",
-              marginBottom: "25px",
-              color: "#48268A",
-              fontSize: "28px",
-            }}
-          >
-            SUPERMERCADO
-            <div
-    style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        gap: "12px",
-        marginBottom: "10px",
-    }}
->
-    <label
-        style={{
-            color: "#7950C8",
-            fontWeight: "600",
-            fontSize: "18px",
-        }}
->
-        Mes:
-    </label>
-
-    <input
-        type="month"
-        value={selectedMonth}
-        onChange={(e) => setSelectedMonth(e.target.value)}
-        style={{
-            padding: "10px 14px",
-            borderRadius: "12px",
-            border: "2px solid #DCC8F5",
-            color: "#7950C8",
-            fontSize: "16px",
-            backgroundColor: "#FFFFFF",
-        }}
-    />
-</div>
+          <h2>
+            {formatCurrency(saldoDisponible)}
           </h2>
 
+          <span>
+            Resumen de {monthLabel}
+          </span>
+        </section>
 
-{monthlyTransactions.map((transaction, index) => (
-  <div
-    key={index}
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "16px 0",
-      borderBottom:
-    index < monthlyTransactions.length - 1
-          ? "1px solid #EEE7F7"
-          : "none",
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "15px",
-      }}
-    >
-      <div
-        style={{
-          width: "44px",
-          height: "44px",
-          borderRadius: "12px",
-          backgroundColor:
-            transaction.type === "income"
-              ? "#E3F8EF"
-              : "#FFEAF0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "22px",
-        }}
-      >
-        {transaction.type === "income" ? "💼" : "🛒"}
+        <section className="summary-grid">
+
+          <div className="summary-card income-card">
+            <div className="summary-icon">
+              📈
+            </div>
+
+            <div>
+              <span>Ingresos</span>
+
+              <h3>
+                {formatCurrency(totalIngresos)}
+              </h3>
+            </div>
+          </div>
+
+          <div className="summary-card expense-card">
+            <div className="summary-icon">
+              📉
+            </div>
+
+            <div>
+              <span>Gastos</span>
+
+              <h3>
+                {formatCurrency(totalGastos)}
+              </h3>
+            </div>
+          </div>
+
+          <div className="summary-card saving-card">
+            <div className="summary-icon">
+              💵
+            </div>
+
+            <div>
+              <span>Ahorro</span>
+
+              <h3>
+                {formatCurrency(saldoDisponible)}
+              </h3>
+            </div>
+          </div>
+
+        </section>
+
+        <section className="action-buttons">
+
+          <button
+            className="income-button"
+            onClick={() =>
+              handleOpenForm("income")
+            }
+          >
+            <span>＋</span>
+            Agregar ingreso
+          </button>
+
+          <button
+            className="expense-button"
+            onClick={() =>
+              handleOpenForm("expense")
+            }
+          >
+            <span>−</span>
+            Agregar gasto
+          </button>
+
+        </section>
+
+        <section className="transactions-section">
+
+          <div className="transactions-header">
+            <div>
+              <h2>Últimos movimientos</h2>
+
+              <p>
+                {monthlyTransactions.length} movimiento
+                {monthlyTransactions.length !== 1
+                  ? "s"
+                  : ""}{" "}
+                en {monthLabel}
+              </p>
+            </div>
+
+            <button
+              className="reset-button"
+              onClick={handleResetData}
+            >
+              Restaurar ejemplo
+            </button>
+          </div>
+
+          {monthlyTransactions.length === 0 ? (
+            <div className="empty-state">
+              <div>📭</div>
+
+              <h3>
+                No hay movimientos este mes
+              </h3>
+
+              <p>
+                Agrega un ingreso o gasto para comenzar.
+              </p>
+            </div>
+          ) : (
+            <div className="transactions-list">
+
+              {monthlyTransactions.map(
+                (transaction) => (
+                  <div
+                    className="transaction-item"
+                    key={transaction.id}
+                  >
+                    <div className="transaction-icon">
+                      {transaction.type === "income"
+                        ? "💰"
+                        : "🛒"}
+                    </div>
+
+                    <div className="transaction-info">
+
+                      <h3>
+                        {transaction.description}
+                      </h3>
+
+                      <p>
+                        {transaction.category}
+                        {" • "}
+                        {formatDate(transaction.date)}
+                      </p>
+
+                    </div>
+
+                    <div className="transaction-actions">
+
+                      <div
+                        className={
+                          transaction.type === "income"
+                            ? "transaction-amount income"
+                            : "transaction-amount expense"
+                        }
+                      >
+                        {transaction.type === "income"
+                          ? "+"
+                          : "-"}
+                        {formatCurrency(transaction.amount)}
+                      </div>
+
+                      <div className="transaction-buttons">
+
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            handleEditTransaction(
+                              transaction
+                            )
+                          }
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            handleDeleteTransaction(
+                              transaction.id
+                            )
+                          }
+                          title="Eliminar"
+                        >
+                          🗑️
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+                )
+              )}
+
+            </div>
+          )}
+
+        </section>
+
       </div>
 
-      <div>
-        <div
-          style={{
-            fontSize: "19px",
-            color: "#38206B",
-            fontWeight: "600",
-          }}
-        >
-          {transaction.description}
-        </div>
+      {showForm && (
+        <TransactionForm
+          type={transactionType}
+          transactionToEdit={transactionToEdit}
+          onSave={handleSaveTransaction}
+          onClose={handleCloseForm}
+        />
+      )}
 
-        <div
-          style={{
-            fontSize: "14px",
-            color: "#8B78B5",
-            marginTop: "4px",
-          }}
-        >
-          {transaction.category} · {formatDate(transaction.date)}
-        </div>
-      </div>
     </div>
-
-    <strong
-      style={{
-        color:
-          transaction.type === "income"
-            ? "#32B982"
-            : "#F06C91",
-        fontSize: "19px",
-      }}
-    >
-      {transaction.type === "income" ? "+" : "-"}$
-      {transaction.amount.toLocaleString("es-CL")}
-    </strong>
-
-    <button
-    onClick={() => handleEditTransaction(transaction)}
-    style={{
-        border: "none",
-        background: "transparent",
-        cursor: "pointer",
-        fontSize: "20px",
-        marginLeft: "15px"
-    }}
->
-    ✏️
-</button>
-<button
-    onClick={() => handleDeleteTransaction(transaction.id)}
-    style={{
-        border: "none",
-        background: "transparent",
-        cursor: "pointer",
-        fontSize: "20px",
-        marginLeft: "8px"
-    }}
->
-    🗑️
-</button>
-  </div>
-  ))}
-</div>
-</div>
-</div>
-);
+  );
 }
 
 export default Dashboard;
