@@ -1,46 +1,75 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("Otros");
-  useEffect(() => {
-    if (transactionToEdit) {
-        setDescription(transactionToEdit.description);
-        setAmount(transactionToEdit.amount);
-        setCategory(transactionToEdit.category);
-        setDate(transactionToEdit.date);
-    }
-}, [transactionToEdit]);
+function TransactionForm({
+  type,
+  transactionToEdit,
+  onClose,
+  onSave,
+}) {
+  const [description, setDescription] =
+    useState("");
+
+  const [amount, setAmount] =
+    useState("");
+
+  const [category, setCategory] =
+    useState("Otros");
+
   const [date, setDate] = useState(
     new Date().toISOString().split("T")[0]
   );
 
   const isIncome = type === "income";
 
+  useEffect(() => {
+    if (transactionToEdit) {
+      setDescription(
+        transactionToEdit.description ||
+          transactionToEdit.title ||
+          ""
+      );
+
+      setAmount(transactionToEdit.amount || "");
+
+      setCategory(
+        transactionToEdit.category || "Otros"
+      );
+
+      setDate(
+        transactionToEdit.date ||
+          new Date()
+            .toISOString()
+            .split("T")[0]
+      );
+    } else {
+      setDescription("");
+      setAmount("");
+      setCategory("Otros");
+      setDate(
+        new Date().toISOString().split("T")[0]
+      );
+    }
+  }, [transactionToEdit, type]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!description || !amount) {
-      alert("Completa la descripción y el monto.");
+    if (!description.trim() || !amount) {
+      alert(
+        "Completa la descripción y el monto."
+      );
       return;
     }
 
     const transaction = {
-      id: transactionToEdit ? transactionToEdit.id : Date.now(),
       type,
-      description,
+      description: description.trim(),
       amount: Number(amount),
       category,
       date,
     };
 
     onSave(transaction);
-
-    setDescription("");
-    setAmount("");
-    setCategory("Otros");
-    onClose();
   };
 
   return (
@@ -48,7 +77,8 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(76, 45, 120, 0.35)",
+        backgroundColor:
+          "rgba(76, 45, 120, 0.35)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -63,22 +93,30 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
           maxWidth: "500px",
           borderRadius: "24px",
           padding: "30px",
-          boxShadow: "0 20px 60px rgba(76, 45, 120, 0.25)",
+          boxShadow:
+            "0 20px 60px rgba(76, 45, 120, 0.25)",
         }}
       >
         <h2
           style={{
-            color: isIncome ? "#7C4DFF" : "#E85D8E",
+            color: isIncome
+              ? "#7C4DFF"
+              : "#E85D8E",
             marginTop: 0,
             marginBottom: "25px",
             textAlign: "center",
           }}
         >
-          {isIncome ? "➕ Agregar ingreso" : "➖ Agregar gasto"}
+          {transactionToEdit
+            ? isIncome
+              ? "✏️ Editar ingreso"
+              : "✏️ Editar gasto"
+            : isIncome
+            ? "➕ Agregar ingreso"
+            : "➖ Agregar gasto"}
         </h2>
 
         <form onSubmit={handleSubmit}>
-
           <label
             style={{
               display: "block",
@@ -94,14 +132,17 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
             type="text"
             placeholder="Ej: Supermercado"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) =>
+              setDescription(e.target.value)
+            }
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border: "2px solid #E8DDF7",
+              border:
+                "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -120,16 +161,19 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
           <input
             type="number"
             placeholder="Ej: 45000"
-            min="0"
+            min="1"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) =>
+              setAmount(e.target.value)
+            }
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border: "2px solid #E8DDF7",
+              border:
+                "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -147,14 +191,17 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
 
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) =>
+              setCategory(e.target.value)
+            }
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border: "2px solid #E8DDF7",
+              border:
+                "2px solid #E8DDF7",
               fontSize: "16px",
               backgroundColor: "#ffffff",
             }}
@@ -194,14 +241,17 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
           <input
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) =>
+              setDate(e.target.value)
+            }
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "25px",
               borderRadius: "12px",
-              border: "2px solid #E8DDF7",
+              border:
+                "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -224,7 +274,6 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
                 color: "#4B2E83",
                 fontSize: "16px",
                 fontWeight: "600",
-                cursor: "pointer",
               }}
             >
               Cancelar
@@ -237,14 +286,17 @@ function TransactionForm({ type, transactionToEdit, onClose, onSave }) {
                 padding: "14px",
                 borderRadius: "12px",
                 border: "none",
-                backgroundColor: isIncome ? "#9B6DDB" : "#EE7198",
+                backgroundColor: isIncome
+                  ? "#9B6DDB"
+                  : "#EE7198",
                 color: "white",
                 fontSize: "16px",
                 fontWeight: "600",
-                cursor: "pointer",
               }}
             >
-              Guardar
+              {transactionToEdit
+                ? "Guardar cambios"
+                : "Guardar"}
             </button>
           </div>
         </form>
