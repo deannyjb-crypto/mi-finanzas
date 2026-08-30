@@ -163,13 +163,18 @@ function TransactionForm({
           </label>
 
           <input
-            type="number"
-            placeholder="Ej: 45000"
-            min="1"
-            value={amount}
-            onChange={(e) =>
-              setAmount(e.target.value)
-            }
+            type="text"
+  inputMode="numeric"
+  placeholder="Ej: 45.000"
+  value={
+    amount
+      ? Number(amount).toLocaleString("es-CL")
+      : ""
+  }
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    setAmount(value);
+  }}
             style={{
               width: "100%",
               boxSizing: "border-box",
