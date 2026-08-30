@@ -130,7 +130,11 @@ function TransactionForm({
 
           <input
             type="text"
-            placeholder="Ej: Supermercado"
+            placeholder={
+  isIncome
+    ? "Ej: Salario, Freelance, Venta"
+    : "Ej: Supermercado, Transporte, Comida"
+}
             value={description}
             onChange={(e) =>
               setDescription(e.target.value)
