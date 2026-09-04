@@ -28,13 +28,34 @@ export default function Auth({ onLogin }) {
 
         if (error) throw error;
 
-        console.log("Usuario conectado:", data.user);
+        // Buscar el perfil del usuario
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("approved")
+          .eq("id", data.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        // Revisar si el usuario fue aprobado
+        if (!profile.approved) {
+          await supabase.auth.signOut();
+
+          setMessage("Tu cuenta está pendiente de aprobación.");
+
+          setLoading(false);
+          return;
+        }
+
+        // Usuario aprobado
+        console.log("Usuario aprobado:", data.user);
 
         setMessage("¡Inicio de sesión exitoso!");
 
         if (onLogin) {
           onLogin(data.user);
         }
+
       } else {
         // CREAR CUENTA
         const { data, error } =
@@ -51,10 +72,12 @@ export default function Auth({ onLogin }) {
           "¡Cuenta creada correctamente! Revisa tu correo para confirmar tu cuenta."
         );
       }
+
     } catch (error) {
       console.error(error);
 
       setMessage(error.message);
+
     } finally {
       setLoading(false);
     }
@@ -63,7 +86,7 @@ export default function Auth({ onLogin }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        
+
         <div className="auth-header">
           <div className="auth-logo">💰</div>
 

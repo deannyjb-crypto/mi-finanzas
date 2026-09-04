@@ -6,18 +6,15 @@ function TransactionForm({
   onClose,
   onSave,
 }) {
-  const [description, setDescription] =
-    useState("");
-
-  const [amount, setAmount] =
-    useState("");
-
-  const [category, setCategory] =
-    useState("Otros");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("Otros");
 
   const [date, setDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+
+  const [isSaving, setIsSaving] = useState(false);
 
   const isIncome = type === "income";
 
@@ -29,7 +26,11 @@ function TransactionForm({
           ""
       );
 
-      setAmount(transactionToEdit.amount || "");
+      setAmount(
+        transactionToEdit.amount
+          ? String(transactionToEdit.amount)
+          : ""
+      );
 
       setCategory(
         transactionToEdit.category || "Otros"
@@ -37,9 +38,7 @@ function TransactionForm({
 
       setDate(
         transactionToEdit.date ||
-          new Date()
-            .toISOString()
-            .split("T")[0]
+          new Date().toISOString().split("T")[0]
       );
     } else {
       setDescription("");
@@ -51,25 +50,29 @@ function TransactionForm({
     }
   }, [transactionToEdit, type]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isSaving) return;
+
     if (!description.trim() || !amount) {
-      alert(
-        "Completa la descripción y el monto."
-      );
+      alert("Completa la descripción y el monto.");
       return;
     }
 
-    const transaction = {
-      type,
-      description: description.trim(),
-      amount: Number(amount),
-      category,
-      date,
-    };
+    setIsSaving(true);
 
-    onSave(transaction);
+    try {
+      await onSave({
+        type,
+        description: description.trim(),
+        amount: Number(amount),
+        category,
+        date,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -131,22 +134,22 @@ function TransactionForm({
           <input
             type="text"
             placeholder={
-  isIncome
-    ? "Ej: Salario, Freelance, Venta"
-    : "Ej: Supermercado, Transporte, Comida"
-}
+              isIncome
+                ? "Ej: Salario, Freelance, Venta"
+                : "Ej: Supermercado, Transporte, Comida"
+            }
             value={description}
             onChange={(e) =>
               setDescription(e.target.value)
             }
+            disabled={isSaving}
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border:
-                "2px solid #E8DDF7",
+              border: "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -164,25 +167,29 @@ function TransactionForm({
 
           <input
             type="text"
-  inputMode="numeric"
-  placeholder="Ej: 45.000"
-  value={
-    amount
-      ? Number(amount).toLocaleString("es-CL")
-      : ""
-  }
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "");
-    setAmount(value);
-  }}
+            inputMode="numeric"
+            placeholder="Ej: 45.000"
+            value={
+              amount
+                ? Number(amount).toLocaleString("es-CL")
+                : ""
+            }
+            onChange={(e) => {
+              const value = e.target.value.replace(
+                /\D/g,
+                ""
+              );
+
+              setAmount(value);
+            }}
+            disabled={isSaving}
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border:
-                "2px solid #E8DDF7",
+              border: "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -203,14 +210,14 @@ function TransactionForm({
             onChange={(e) =>
               setCategory(e.target.value)
             }
+            disabled={isSaving}
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "20px",
               borderRadius: "12px",
-              border:
-                "2px solid #E8DDF7",
+              border: "2px solid #E8DDF7",
               fontSize: "16px",
               backgroundColor: "#ffffff",
             }}
@@ -253,14 +260,14 @@ function TransactionForm({
             onChange={(e) =>
               setDate(e.target.value)
             }
+            disabled={isSaving}
             style={{
               width: "100%",
               boxSizing: "border-box",
               padding: "14px",
               marginBottom: "25px",
               borderRadius: "12px",
-              border:
-                "2px solid #E8DDF7",
+              border: "2px solid #E8DDF7",
               fontSize: "16px",
             }}
           />
@@ -274,6 +281,7 @@ function TransactionForm({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSaving}
               style={{
                 flex: 1,
                 padding: "14px",
@@ -283,6 +291,7 @@ function TransactionForm({
                 color: "#4B2E83",
                 fontSize: "16px",
                 fontWeight: "600",
+                opacity: isSaving ? 0.6 : 1,
               }}
             >
               Cancelar
@@ -290,6 +299,7 @@ function TransactionForm({
 
             <button
               type="submit"
+              disabled={isSaving}
               style={{
                 flex: 1,
                 padding: "14px",
@@ -301,9 +311,15 @@ function TransactionForm({
                 color: "white",
                 fontSize: "16px",
                 fontWeight: "600",
+                cursor: isSaving
+                  ? "not-allowed"
+                  : "pointer",
+                opacity: isSaving ? 0.7 : 1,
               }}
             >
-              {transactionToEdit
+              {isSaving
+                ? "Guardando..."
+                : transactionToEdit
                 ? "Guardar cambios"
                 : "Guardar"}
             </button>

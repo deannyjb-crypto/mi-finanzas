@@ -4,10 +4,14 @@ import "./App.css";
 
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Household from "./pages/Household";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Controla la sección que se está mostrando
+  const [currentPage, setCurrentPage] = useState("dashboard");
 
   useEffect(() => {
     // Revisar si ya existe una sesión activa
@@ -39,16 +43,57 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
+      <div
+        style={{
+          padding: "40px",
+          textAlign: "center",
+        }}
+      >
         Cargando...
       </div>
     );
   }
 
-  return user ? (
-    <Dashboard user={user} />
-  ) : (
-    <Auth onLogin={setUser} />
+  // Si no hay sesión
+  if (!user) {
+    return <Auth onLogin={setUser} />;
+  }
+
+  // Usuario autenticado
+  return (
+    <>
+      <nav className="main-navigation">
+        <button
+          onClick={() => setCurrentPage("dashboard")}
+          className={
+            currentPage === "dashboard"
+              ? "nav-button active"
+              : "nav-button"
+          }
+        >
+          💰 Mis finanzas
+        </button>
+
+        <button
+          onClick={() => setCurrentPage("household")}
+          className={
+            currentPage === "household"
+              ? "nav-button active"
+              : "nav-button"
+          }
+        >
+          🏠 Mi hogar
+        </button>
+      </nav>
+
+      {currentPage === "dashboard" && (
+        <Dashboard user={user} />
+      )}
+
+      {currentPage === "household" && (
+        <Household user={user} />
+      )}
+    </>
   );
 }
 
