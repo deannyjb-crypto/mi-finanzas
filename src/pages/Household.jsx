@@ -20,13 +20,10 @@ function Household({ user }) {
   const [household, setHousehold] = useState(null);
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
-  // CREAR HOGAR
   const [householdName, setHouseholdName] = useState("");
 
-  // FORMULARIO GASTO
   const [showTransactionForm, setShowTransactionForm] =
     useState(false);
 
@@ -41,7 +38,6 @@ function Household({ user }) {
     new Date().toISOString().split("T")[0]
   );
 
-  // AGREGAR MIEMBRO
   const [showMemberForm, setShowMemberForm] =
     useState(false);
 
@@ -57,30 +53,68 @@ function Household({ user }) {
     setLoading(true);
 
     try {
-      // Buscar el hogar del usuario
+      // Buscar TODOS los hogares a los que
+      // pertenece el usuario
       const {
-        data: memberData,
-        error: memberError,
+        data: memberships,
+        error: membershipsError,
       } = await supabase
         .from("household_members")
-        .select("household_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
+        .select("household_id, created_at")
+        .eq("user_id", user.id);
 
-      if (memberError) throw memberError;
+      if (membershipsError) throw membershipsError;
 
-      // Si todavía no tiene hogar
-      if (!memberData) {
+      // Si no pertenece a ningún hogar
+      if (!memberships || memberships.length === 0) {
         setHousehold(null);
         setMembers([]);
         setTransactions([]);
         return;
       }
 
-      const householdId = memberData.household_id;
+      let householdId = memberships[0].household_id;
 
-      // Cargar hogar
+      // Si pertenece a más de un hogar,
+      // elegir el que tenga más miembros
+      if (memberships.length > 1) {
+        const householdIds = memberships.map(
+          (membership) => membership.household_id
+        );
+
+        const {
+          data: allMembers,
+          error: allMembersError,
+        } = await supabase
+          .from("household_members")
+          .select("household_id")
+          .in("household_id", householdIds);
+
+        if (allMembersError) throw allMembersError;
+
+        const memberCounts = {};
+
+        (allMembers || []).forEach((member) => {
+          memberCounts[member.household_id] =
+            (memberCounts[member.household_id] || 0) + 1;
+        });
+
+        householdId = householdIds.reduce(
+          (selectedId, currentId) => {
+            const selectedCount =
+              memberCounts[selectedId] || 0;
+
+            const currentCount =
+              memberCounts[currentId] || 0;
+
+            return currentCount > selectedCount
+              ? currentId
+              : selectedId;
+          }
+        );
+      }
+
+      // Cargar hogar seleccionado
       const {
         data: householdData,
         error: householdError,
@@ -94,7 +128,7 @@ function Household({ user }) {
 
       setHousehold(householdData);
 
-      // Cargar miembros
+      // Cargar miembros del hogar
       const {
         data: membersData,
         error: membersError,
@@ -107,7 +141,7 @@ function Household({ user }) {
 
       setMembers(membersData || []);
 
-      // Cargar gastos
+      // Cargar gastos del hogar
       const {
         data: transactionsData,
         error: transactionsError,
@@ -115,7 +149,9 @@ function Household({ user }) {
         .from("household_transactions")
         .select("*")
         .eq("household_id", householdId)
-        .order("date", { ascending: false });
+        .order("date", {
+          ascending: false,
+        });
 
       if (transactionsError) throw transactionsError;
 
@@ -152,7 +188,6 @@ function Household({ user }) {
     }
 
     try {
-      // Crear hogar
       const {
         data,
         error,
@@ -169,7 +204,6 @@ function Household({ user }) {
 
       if (error) throw error;
 
-      // Agregar creador como miembro
       const {
         error: memberError,
       } = await supabase
@@ -216,7 +250,6 @@ function Household({ user }) {
     }
 
     try {
-      // Revisar si ya existe
       const {
         data: existingMember,
         error: checkError,
@@ -236,7 +269,6 @@ function Household({ user }) {
         return;
       }
 
-      // Agregar miembro
       const { error } = await supabase
         .from("household_members")
         .insert([
@@ -273,7 +305,6 @@ function Household({ user }) {
 
   const openNewTransaction = () => {
     setTransactionToEdit(null);
-
     setDescription("");
     setAmount("");
     setCategory("Hogar");
@@ -335,7 +366,6 @@ function Household({ user }) {
       };
 
       if (transactionToEdit) {
-        // EDITAR
         const { error } = await supabase
           .from("household_transactions")
           .update({
@@ -359,7 +389,6 @@ function Household({ user }) {
 
         if (error) throw error;
       } else {
-        // CREAR
         const { error } = await supabase
           .from("household_transactions")
           .insert([transactionData]);
@@ -376,7 +405,6 @@ function Household({ user }) {
       );
 
       setTransactionToEdit(null);
-
       setShowTransactionForm(false);
 
       await loadHousehold();
@@ -482,11 +510,8 @@ function Household({ user }) {
     return (
       <div className="dashboard">
         <div className="dashboard-container">
-
           <header className="header">
-            <h1>
-              🏠 Finanzas del Hogar
-            </h1>
+            <h1>🏠 Finanzas del Hogar</h1>
 
             <p>
               Comparte los gastos y lleva el
@@ -495,9 +520,7 @@ function Household({ user }) {
           </header>
 
           <section className="savings-section">
-
             <div className="empty-state">
-
               <div>🏠</div>
 
               <h3>
@@ -510,9 +533,7 @@ function Household({ user }) {
               </p>
 
               <form
-                onSubmit={
-                  handleCreateHousehold
-                }
+                onSubmit={handleCreateHousehold}
                 style={{
                   marginTop: "25px",
                   width: "100%",
@@ -547,11 +568,8 @@ function Household({ user }) {
                   🏠 Crear mi hogar
                 </button>
               </form>
-
             </div>
-
           </section>
-
         </div>
       </div>
     );
@@ -563,11 +581,9 @@ function Household({ user }) {
 
   return (
     <div className="dashboard">
-
       <div className="dashboard-container">
 
         <header className="header">
-
           <h1>
             🏠 {household.name}
           </h1>
@@ -575,43 +591,32 @@ function Household({ user }) {
           <p>
             Finanzas compartidas del hogar
           </p>
-
         </header>
-
-        {/* RESUMEN */}
 
         <section className="summary-grid">
 
           <div className="summary-card expense-card">
-
             <div className="summary-icon">
               🧾
             </div>
 
             <div>
-
               <span>
                 Total gastos
               </span>
 
               <h3>
-                {formatCurrency(
-                  totalGastos
-                )}
+                {formatCurrency(totalGastos)}
               </h3>
-
             </div>
-
           </div>
 
           <div className="summary-card income-card">
-
             <div className="summary-icon">
               👥
             </div>
 
             <div>
-
               <span>
                 Miembros
               </span>
@@ -619,21 +624,16 @@ function Household({ user }) {
               <h3>
                 {memberCount}
               </h3>
-
             </div>
-
           </div>
 
         </section>
-
-        {/* MIEMBROS */}
 
         <section className="savings-section">
 
           <div className="savings-header">
 
             <div>
-
               <h2>
                 👥 Miembros del hogar
               </h2>
@@ -642,7 +642,6 @@ function Household({ user }) {
                 Personas que comparten estos
                 gastos.
               </p>
-
             </div>
 
             <button
@@ -659,127 +658,90 @@ function Household({ user }) {
           <div className="transactions-list">
 
             {members.map((member, index) => (
-
               <div
                 className="transaction-item"
                 key={member.id}
               >
-
                 <div className="transaction-icon">
                   👤
                 </div>
 
                 <div className="transaction-info">
-
                   <h3>
                     {member.user_id === user.id
                       ? "Tú"
-                      : `Miembro ${
-                          index + 1
-                        }`}
+                      : `Miembro ${index + 1}`}
                   </h3>
 
                   <p>
                     Miembro del hogar
                   </p>
-
                 </div>
-
               </div>
-
             ))}
 
           </div>
-
         </section>
 
-        {/* MI APORTE */}
-
         <section className="balance-card">
-
           <p>
             Mi aporte al hogar
           </p>
 
           <h2>
-            {formatCurrency(
-              myTotalPaid
-            )}
+            {formatCurrency(myTotalPaid)}
           </h2>
 
           <span>
             De un total de{" "}
-            {formatCurrency(
-              totalGastos
-            )}
+            {formatCurrency(totalGastos)}
           </span>
-
         </section>
-
-        {/* BALANCE */}
 
         <section className="saving-progress-card">
 
           <div className="saving-progress-header">
 
             <div>
-
               <h2>
                 ⚖️ Balance compartido
               </h2>
 
               {memberCount <= 1 ? (
-
                 <p>
                   Agrega otro miembro para
                   calcular automáticamente cuánto
                   corresponde pagar a cada uno.
                 </p>
-
               ) : balance > 0 ? (
-
                 <p>
                   Has pagado{" "}
-
                   <strong>
-                    {formatCurrency(
-                      balance
-                    )}
+                    {formatCurrency(balance)}
                   </strong>{" "}
-
                   más de lo que te corresponde.
                 </p>
-
               ) : balance < 0 ? (
-
                 <p>
                   Te falta aportar{" "}
-
                   <strong>
                     {formatCurrency(
                       Math.abs(balance)
                     )}
                   </strong>{" "}
-
                   para igualar los gastos.
                 </p>
-
               ) : (
-
                 <p>
                   🎉 Los gastos están
                   perfectamente equilibrados.
                 </p>
-
               )}
-
             </div>
 
           </div>
 
         </section>
-
-        {/* AGREGAR GASTO */}
 
         <section className="action-buttons">
 
@@ -787,23 +749,16 @@ function Household({ user }) {
             className="expense-button"
             onClick={openNewTransaction}
           >
-
             <span>＋</span>
-
             Agregar gasto del hogar
-
           </button>
 
         </section>
 
-        {/* LISTA GASTOS */}
-
         <section className="transactions-section">
 
           <div className="transactions-header">
-
             <div>
-
               <h2>
                 Gastos del hogar
               </h2>
@@ -814,15 +769,11 @@ function Household({ user }) {
                   ? "s"
                   : ""}
               </p>
-
             </div>
-
           </div>
 
           {transactions.length === 0 ? (
-
             <div className="empty-state">
-
               <div>📭</div>
 
               <h3>
@@ -832,98 +783,81 @@ function Household({ user }) {
               <p>
                 Agrega el primer gasto del hogar.
               </p>
-
             </div>
-
           ) : (
-
             <div className="transactions-list">
 
-              {transactions.map(
-                (transaction) => (
+              {transactions.map((transaction) => (
+                <div
+                  className="transaction-item"
+                  key={transaction.id}
+                >
+                  <div className="transaction-icon">
+                    🏠
+                  </div>
 
-                  <div
-                    className="transaction-item"
-                    key={transaction.id}
-                  >
+                  <div className="transaction-info">
+                    <h3>
+                      {transaction.description}
+                    </h3>
 
-                    <div className="transaction-icon">
-                      🏠
+                    <p>
+                      {transaction.category} •{" "}
+                      {formatDate(
+                        transaction.date
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="transaction-actions">
+
+                    <div className="transaction-amount expense">
+                      −
+                      {formatCurrency(
+                        transaction.amount
+                      )}
                     </div>
 
-                    <div className="transaction-info">
+                    <div className="transaction-buttons">
 
-                      <h3>
-                        {transaction.description}
-                      </h3>
+                      <button
+                        className="edit-button"
+                        onClick={() =>
+                          handleEditTransaction(
+                            transaction
+                          )
+                        }
+                      >
+                        ✏️
+                      </button>
 
-                      <p>
-                        {transaction.category} •{" "}
-                        {formatDate(
-                          transaction.date
-                        )}
-                      </p>
-
-                    </div>
-
-                    <div className="transaction-actions">
-
-                      <div className="transaction-amount expense">
-
-                        −
-                        {formatCurrency(
-                          transaction.amount
-                        )}
-
-                      </div>
-
-                      <div className="transaction-buttons">
-
-                        <button
-                          className="edit-button"
-                          onClick={() =>
-                            handleEditTransaction(
-                              transaction
-                            )
-                          }
-                        >
-                          ✏️
-                        </button>
-
-                        <button
-                          className="delete-button"
-                          onClick={() =>
-                            handleDeleteTransaction(
-                              transaction.id
-                            )
-                          }
-                        >
-                          🗑️
-                        </button>
-
-                      </div>
+                      <button
+                        className="delete-button"
+                        onClick={() =>
+                          handleDeleteTransaction(
+                            transaction.id
+                          )
+                        }
+                      >
+                        🗑️
+                      </button>
 
                     </div>
 
                   </div>
-
-                )
-              )}
+                </div>
+              ))}
 
             </div>
-
           )}
 
         </section>
 
       </div>
 
-      {/* ============================= */}
       {/* MODAL AGREGAR MIEMBRO */}
-      {/* ============================= */}
 
       {showMemberForm && (
-
         <div className="saving-modal-overlay">
 
           <div className="saving-modal">
@@ -945,7 +879,6 @@ function Household({ user }) {
             <form
               onSubmit={handleAddMember}
             >
-
               <label>
                 ID del usuario
               </label>
@@ -955,9 +888,7 @@ function Household({ user }) {
                 placeholder="Pega aquí el ID del usuario"
                 value={memberId}
                 onChange={(e) =>
-                  setMemberId(
-                    e.target.value
-                  )
+                  setMemberId(e.target.value)
                 }
               />
 
@@ -982,21 +913,15 @@ function Household({ user }) {
                 </button>
 
               </div>
-
             </form>
 
           </div>
-
         </div>
-
       )}
 
-      {/* ============================= */}
       {/* MODAL GASTO */}
-      {/* ============================= */}
 
       {showTransactionForm && (
-
         <div className="saving-modal-overlay">
 
           <div className="saving-modal">
@@ -1008,9 +933,7 @@ function Household({ user }) {
             </h2>
 
             <form
-              onSubmit={
-                handleSaveTransaction
-              }
+              onSubmit={handleSaveTransaction}
             >
 
               <label>
@@ -1022,9 +945,7 @@ function Household({ user }) {
                 placeholder="Ej: Supermercado"
                 value={description}
                 onChange={(e) =>
-                  setDescription(
-                    e.target.value
-                  )
+                  setDescription(e.target.value)
                 }
               />
 
@@ -1038,9 +959,7 @@ function Household({ user }) {
                 placeholder="Ej: 45.000"
                 value={
                   amount
-                    ? Number(
-                        amount
-                      ).toLocaleString(
+                    ? Number(amount).toLocaleString(
                         "es-CL"
                       )
                     : ""
@@ -1063,12 +982,9 @@ function Household({ user }) {
               <select
                 value={category}
                 onChange={(e) =>
-                  setCategory(
-                    e.target.value
-                  )
+                  setCategory(e.target.value)
                 }
               >
-
                 <option>
                   Alimentación
                 </option>
@@ -1100,7 +1016,6 @@ function Household({ user }) {
                 <option>
                   Otros
                 </option>
-
               </select>
 
               <label>
@@ -1111,9 +1026,7 @@ function Household({ user }) {
                 type="date"
                 value={date}
                 onChange={(e) =>
-                  setDate(
-                    e.target.value
-                  )
+                  setDate(e.target.value)
                 }
               />
 
@@ -1140,13 +1053,10 @@ function Household({ user }) {
                 </button>
 
               </div>
-
             </form>
 
           </div>
-
         </div>
-
       )}
 
     </div>
