@@ -696,27 +696,47 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
   const handleSaveTransaction = async (
     transactionData
   ) => {
-    if (savingTransaction) {
-      return;
-    }
+    if (!user) return;
+    if (savingTransaction) return;
 
     setSavingTransaction(true);
 
     try {
-      // TransactionForm guarda en Supabase.
-      // Aquí solo recargamos.
+      const payload = {
+        user_id: user.id,
+        title: transactionData.description,
+        amount: Number(transactionData.amount),
+        category: transactionData.category,
+        date: transactionData.date,
+        type: transactionData.type,
+      };
+
+      if (transactionToEdit) {
+        const { error } = await supabase
+          .from("transactions")
+          .update(payload)
+          .eq("id", transactionToEdit.id)
+          .eq("user_id", user.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("transactions")
+          .insert([payload]);
+
+        if (error) throw error;
+      }
 
       await loadTransactions();
-
       handleCloseForm();
     } catch (error) {
       console.error(
-        "Error actualizando transacciones:",
+        "Error guardando transacción:",
         error
       );
 
       alert(
-        "Error: " +
+        "Error al guardar: " +
           error.message
       );
     } finally {
@@ -731,7 +751,13 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
   const handleEditTransaction = (
     transaction
   ) => {
-    setTransactionToEdit(transaction);
+    setTransactionToEdit({
+      ...transaction,
+      description:
+        transaction.description ||
+        transaction.title ||
+        "",
+    });
 
     setTransactionType(
       transaction.type
