@@ -2,29 +2,46 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../services/supabase";
 import TransactionForm from "../components/TransactionForm";
 
+// ========================================
+// FORMATEAR MONEDA
+// ========================================
+
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
     currency: "CLP",
     maximumFractionDigits: 0,
-  }).format(Number(amount || 0));
+  }).format(Number(amount) || 0);
 };
+
+// ========================================
+// FORMATEAR FECHA
+// ========================================
 
 const formatDate = (date) => {
   if (!date) return "";
 
   const [year, month, day] = date.split("-");
+
   return `${day}/${month}/${year}`;
 };
+
+// ========================================
+// MES ACTUAL
+// ========================================
 
 const getTodayMonth = () => {
   return new Date().toISOString().slice(0, 7);
 };
 
+// ========================================
+// DASHBOARD
+// ========================================
+
 function Dashboard({ user }) {
-  // ================================
-  // TRANSACCIONES - ESTADOS
-  // ================================
+  // ======================================
+  // TRANSACCIONES
+  // ======================================
 
   const [showForm, setShowForm] = useState(false);
 
@@ -46,12 +63,11 @@ function Dashboard({ user }) {
   const [selectedMonth, setSelectedMonth] =
     useState(getTodayMonth());
 
-  // ================================
-  // AHORROS - ESTADOS
-  // ================================
+  // ======================================
+  // AHORROS
+  // ======================================
 
-  const [savings, setSavings] =
-    useState([]);
+  const [savings, setSavings] = useState([]);
 
   const [showSavingForm, setShowSavingForm] =
     useState(false);
@@ -68,85 +84,287 @@ function Dashboard({ user }) {
   const [savingToEdit, setSavingToEdit] =
     useState(null);
 
-  // ================================
-  // CARGAR TRANSACCIONES
-  // ================================
+
+    const [showAddMoneyForm, setShowAddMoneyForm] = useState(false);
+const [savingToAddMoney, setSavingToAddMoney] = useState(null);
+const [addMoneyAmount, setAddMoneyAmount] = useState("");
+
+  // ======================================
+  // HOGAR
+  // ======================================
+
+  const [household, setHousehold] =
+    useState(null);
+
+  const [householdMembers, setHouseholdMembers] =
+    useState([]);
+
+  const [householdTransactions, setHouseholdTransactions] =
+    useState([]);
+
+  const [loadingHousehold, setLoadingHousehold] =
+    useState(true);
+
+  // ======================================
+  // CARGAR TRANSACCIONES PERSONALES
+  // ======================================
 
   const loadTransactions = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setLoadingTransactions(false);
+      return;
+    }
 
     setLoadingTransactions(true);
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("date", {
-        ascending: false,
-      });
+    try {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", {
+          ascending: false,
+        });
 
-    if (error) {
+      if (error) {
+        throw error;
+      }
+
+      setTransactions(data || []);
+    } catch (error) {
       console.error(
         "Error cargando transacciones:",
         error
       );
-    } else {
-      setTransactions(data || []);
+    } finally {
+      setLoadingTransactions(false);
     }
-
-    setLoadingTransactions(false);
   };
 
-  // ================================
+  // ======================================
   // CARGAR AHORROS
-  // ================================
+  // ======================================
 
   const loadSavings = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      return;
+    }
 
-    const { data, error } = await supabase
-      .from("savings")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", {
-        ascending: false,
-      });
+    try {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("savings")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: false,
+        });
 
-    if (error) {
+      if (error) {
+        throw error;
+      }
+
+      setSavings(data || []);
+    } catch (error) {
       console.error(
         "Error cargando ahorros:",
         error
       );
-    } else {
-      setSavings(data || []);
     }
   };
 
-  // ================================
-  // CARGAR DATOS AL INICIAR
-  // ================================
+  // ======================================
+  // CARGAR HOGAR
+  // ======================================
+
+  const loadHousehold = async () => {
+    if (!user?.id) {
+      setLoadingHousehold(false);
+      return;
+    }
+
+    setLoadingHousehold(true);
+
+    try {
+      // ----------------------------------
+      // BUSCAR HOGAR
+      // ----------------------------------
+
+      const {
+        data: memberships,
+        error: membershipsError,
+      } = await supabase
+        .from("household_members")
+        .select("household_id")
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: true,
+        });
+
+      if (membershipsError) {
+        throw membershipsError;
+      }
+
+      // ----------------------------------
+      // NO TIENE HOGAR
+      // ----------------------------------
+
+      if (
+        !memberships ||
+        memberships.length === 0
+      ) {
+        setHousehold(null);
+        setHouseholdMembers([]);
+        setHouseholdTransactions([]);
+        return;
+      }
+
+      // ----------------------------------
+      // USAR EL PRIMER HOGAR
+      // ----------------------------------
+
+      const householdId =
+        memberships[0].household_id;
+
+      // ----------------------------------
+      // CARGAR HOGAR
+      // ----------------------------------
+
+      const {
+        data: householdData,
+        error: householdError,
+      } = await supabase
+        .from("households")
+        .select("*")
+        .eq("id", householdId)
+        .single();
+
+      if (householdError) {
+        throw householdError;
+      }
+
+      setHousehold(householdData);
+
+      // ----------------------------------
+      // CARGAR MIEMBROS
+      // ----------------------------------
+
+      const {
+        data: membersData,
+        error: membersError,
+      } = await supabase
+        .from("household_members")
+        .select("*")
+        .eq("household_id", householdId)
+        .order("created_at", {
+          ascending: true,
+        });
+
+      if (membersError) {
+        throw membersError;
+      }
+
+      setHouseholdMembers(
+        membersData || []
+      );
+
+      // ----------------------------------
+      // CARGAR GASTOS HOGAR
+      // ----------------------------------
+
+      const {
+        data: householdTransactionsData,
+        error: householdTransactionsError,
+      } = await supabase
+        .from("household_transactions")
+        .select("*")
+        .eq("household_id", householdId)
+        .order("date", {
+          ascending: false,
+        });
+
+      if (householdTransactionsError) {
+        throw householdTransactionsError;
+      }
+
+      setHouseholdTransactions(
+        householdTransactionsData || []
+      );
+    } catch (error) {
+      console.error(
+        "Error cargando hogar:",
+        error
+      );
+
+      setHousehold(null);
+      setHouseholdMembers([]);
+      setHouseholdTransactions([]);
+    } finally {
+      setLoadingHousehold(false);
+    }
+  };
+
+  // ======================================
+  // CARGAR TODO AL INICIAR
+  // ======================================
 
   useEffect(() => {
     loadTransactions();
     loadSavings();
-  }, [user]);
+    loadHousehold();
+  }, [user?.id]);
 
-  // ================================
-  // FILTRAR POR MES
-  // ================================
+  // ======================================
+  // FILTRAR TRANSACCIONES DEL MES
+  // ======================================
 
   const monthlyTransactions = useMemo(() => {
-    return transactions.filter((transaction) =>
-      transaction.date?.startsWith(selectedMonth)
-    );
+    return transactions
+      .filter((transaction) =>
+        transaction.date?.startsWith(
+          selectedMonth
+        )
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.date) -
+          new Date(a.date)
+      );
   }, [
     transactions,
     selectedMonth,
   ]);
 
-  // ================================
-  // CALCULAR INGRESOS
-  // ================================
+  // ======================================
+  // FILTRAR GASTOS HOGAR DEL MES
+  // ======================================
+
+  const monthlyHouseholdTransactions =
+    useMemo(() => {
+      return householdTransactions
+        .filter((transaction) =>
+          transaction.date?.startsWith(
+            selectedMonth
+          )
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.date) -
+            new Date(a.date)
+        );
+    }, [
+      householdTransactions,
+      selectedMonth,
+    ]);
+
+  // ======================================
+  // INGRESOS DEL MES
+  // ======================================
 
   const totalIngresos = useMemo(() => {
     return monthlyTransactions
@@ -162,9 +380,9 @@ function Dashboard({ user }) {
       );
   }, [monthlyTransactions]);
 
-  // ================================
-  // CALCULAR GASTOS
-  // ================================
+  // ======================================
+  // GASTOS DEL MES
+  // ======================================
 
   const totalGastos = useMemo(() => {
     return monthlyTransactions
@@ -180,16 +398,27 @@ function Dashboard({ user }) {
       );
   }, [monthlyTransactions]);
 
-  // ================================
+  // ======================================
   // SALDO DISPONIBLE ACUMULADO
-  // ================================
+  // ======================================
+  //
+  // IMPORTANTE:
+  // Aquí NO usamos solamente:
+  // ingresos del mes - gastos del mes.
+  //
+  // Se acumulan todos los movimientos hasta
+  // el mes seleccionado.
+  // ======================================
 
   const saldoDisponible = useMemo(() => {
     return transactions
       .filter((transaction) => {
+        const transactionMonth =
+          transaction.date?.slice(0, 7);
+
         return (
-          transaction.date?.slice(0, 7) <=
-          selectedMonth
+          transactionMonth &&
+          transactionMonth <= selectedMonth
         );
       })
       .reduce((total, transaction) => {
@@ -197,18 +426,31 @@ function Dashboard({ user }) {
           transaction.amount || 0
         );
 
-        return transaction.type === "income"
-          ? total + amount
-          : total - amount;
+        if (
+          transaction.type === "income"
+        ) {
+          return total + amount;
+        }
+
+        if (
+          transaction.type === "expense"
+        ) {
+          return total - amount;
+        }
+
+        return total;
       }, 0);
   }, [
     transactions,
     selectedMonth,
   ]);
 
-  // ================================
-  // PORCENTAJE DE AHORRO DEL MES
-  // ================================
+  // ======================================
+  // AHORRO DEL MES / CAPACIDAD DE AHORRO
+  // ======================================
+
+  const ahorroDelMes =
+    totalIngresos - totalGastos;
 
   const porcentajeAhorro =
     totalIngresos > 0
@@ -217,8 +459,7 @@ function Dashboard({ user }) {
           Math.min(
             100,
             Math.round(
-              ((totalIngresos -
-                totalGastos) /
+              (ahorroDelMes /
                 totalIngresos) *
                 100
             )
@@ -226,20 +467,212 @@ function Dashboard({ user }) {
         )
       : 0;
 
-  // ================================
-  // NOMBRE DEL MES
-  // ================================
+  // ======================================
+  // AHORRO ACUMULADO EN METAS
+  // ======================================
 
-  const monthLabel = new Date(
-    `${selectedMonth}-01T12:00:00`
-  ).toLocaleDateString("es-CL", {
-    month: "long",
-    year: "numeric",
-  });
+  const totalAhorrado = useMemo(() => {
+    return savings.reduce(
+      (total, saving) =>
+        total +
+        Number(saving.amount || 0),
+      0
+    );
+  }, [savings]);
 
-  // ================================
+  // ======================================
+  // TOTAL GASTOS HOGAR DEL MES
+  // ======================================
+
+  const totalHouseholdGastos =
+    useMemo(() => {
+      return monthlyHouseholdTransactions.reduce(
+        (total, transaction) =>
+          total +
+          Number(transaction.amount || 0),
+        0
+      );
+    }, [
+      monthlyHouseholdTransactions,
+    ]);
+
+  // ======================================
+  // MI APORTE AL HOGAR
+  // ======================================
+
+  const myHouseholdPaid =
+    useMemo(() => {
+      return monthlyHouseholdTransactions
+        .filter(
+          (transaction) =>
+            transaction.paid_by ===
+            user?.id
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            Number(transaction.amount || 0),
+          0
+        );
+    }, [
+      monthlyHouseholdTransactions,
+      user?.id,
+    ]);
+
+  // ======================================
+  // MIEMBROS DEL HOGAR
+  // ======================================
+
+  const householdMemberCount =
+    householdMembers.length;
+
+  // ======================================
+  // MI PARTE DEL HOGAR
+  // ======================================
+
+  const myHouseholdShare =
+    householdMemberCount > 0
+      ? totalHouseholdGastos /
+        householdMemberCount
+      : 0;
+
+  // ======================================
+  // BALANCE HOGAR
+  // ======================================
+
+  const householdBalance =
+    myHouseholdPaid -
+    myHouseholdShare;
+
+  // ======================================
+  // OTRO MIEMBRO
+  // ======================================
+
+  const otherHouseholdMember =
+    useMemo(() => {
+      return householdMembers.find(
+        (member) =>
+          member.user_id !==
+          user?.id
+      );
+    }, [
+      householdMembers,
+      user?.id,
+    ]);
+
+  // ======================================
+  // NOMBRE DEL OTRO MIEMBRO
+  // ======================================
+
+  const otherMemberName =
+    otherHouseholdMember?.name ||
+    "La otra persona";
+
+  // ======================================
+  // APORTE DEL OTRO MIEMBRO
+  // ======================================
+
+  const otherMemberPaid =
+    useMemo(() => {
+      if (
+        !otherHouseholdMember?.user_id
+      ) {
+        return 0;
+      }
+
+      return monthlyHouseholdTransactions
+        .filter(
+          (transaction) =>
+            transaction.paid_by ===
+            otherHouseholdMember.user_id
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            Number(transaction.amount || 0),
+          0
+        );
+    }, [
+      monthlyHouseholdTransactions,
+      otherHouseholdMember?.user_id,
+    ]);
+
+  // ======================================
+  // MENSAJE DEL BALANCE DEL HOGAR
+  // ======================================
+
+  const householdBalanceText =
+    useMemo(() => {
+      if (!household) {
+        return "";
+      }
+
+      if (
+        householdMemberCount <= 1
+      ) {
+        return "Agrega otro miembro para comenzar a dividir los gastos.";
+      }
+
+      if (
+        householdMemberCount === 2 &&
+        otherHouseholdMember
+      ) {
+        const difference =
+          Math.round(
+            Math.abs(
+              householdBalance
+            )
+          );
+
+        if (
+          householdBalance > 0
+        ) {
+          return `${otherMemberName} te debe ${formatCurrency(
+            difference
+          )}.`;
+        }
+
+        if (
+          householdBalance < 0
+        ) {
+          return `Tú debes aportar ${formatCurrency(
+            difference
+          )} a ${otherMemberName}.`;
+        }
+
+        return "🎉 Están perfectamente equilibrados.";
+      }
+
+      if (
+        householdBalance > 0
+      ) {
+        return `Has aportado ${formatCurrency(
+          householdBalance
+        )} más de lo que te corresponde.`;
+      }
+
+      if (
+        householdBalance < 0
+      ) {
+        return `Te falta aportar ${formatCurrency(
+          Math.abs(
+            householdBalance
+          )
+        )}.`;
+      }
+
+      return "🎉 Estás perfectamente equilibrado.";
+    }, [
+      household,
+      householdMemberCount,
+      otherHouseholdMember,
+      householdBalance,
+      otherMemberName,
+    ]);
+
+  // ======================================
   // ABRIR FORMULARIO TRANSACCIÓN
-  // ================================
+  // ======================================
 
   const handleOpenForm = (type) => {
     setTransactionType(type);
@@ -247,81 +680,53 @@ function Dashboard({ user }) {
     setShowForm(true);
   };
 
+  // ======================================
+  // CERRAR FORMULARIO TRANSACCIÓN
+  // ======================================
+
   const handleCloseForm = () => {
     setShowForm(false);
     setTransactionToEdit(null);
   };
 
-  // ================================
-  // GUARDAR / EDITAR TRANSACCIÓN
-  // ================================
+  // ======================================
+  // GUARDAR TRANSACCIÓN
+  // ======================================
 
   const handleSaveTransaction = async (
-  transactionData
-) => {
-  if (!user) return;
-
-  if (savingTransaction) return;
-
-  setSavingTransaction(true);
-
-  try {
-    if (transactionToEdit) {
-      const { error } = await supabase
-        .from("transactions")
-        .update({
-          title: transactionData.description,
-          description: transactionData.description,
-          amount: transactionData.amount,
-          category: transactionData.category,
-          date: transactionData.date,
-          type: transactionData.type,
-        })
-        .eq("id", transactionToEdit.id)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-    } else {
-      const { error } = await supabase
-        .from("transactions")
-        .insert([
-          {
-            user_id: user.id,
-            title: transactionData.description,
-            description: transactionData.description,
-            amount: transactionData.amount,
-            category: transactionData.category,
-            date: transactionData.date,
-            type: transactionData.type,
-          },
-        ]);
-
-      if (error) throw error;
+    transactionData
+  ) => {
+    if (savingTransaction) {
+      return;
     }
 
-    await loadTransactions();
+    setSavingTransaction(true);
 
-    handleCloseForm();
+    try {
+      // TransactionForm guarda en Supabase.
+      // Aquí solo recargamos.
 
-  } catch (error) {
-    console.error(
-      "Error guardando transacción:",
-      error
-    );
+      await loadTransactions();
 
-    alert(
-      "Error al guardar: " + error.message
-    );
+      handleCloseForm();
+    } catch (error) {
+      console.error(
+        "Error actualizando transacciones:",
+        error
+      );
 
-  } finally {
-    setSavingTransaction(false);
-  }
-};
+      alert(
+        "Error: " +
+          error.message
+      );
+    } finally {
+      setSavingTransaction(false);
+    }
+  };
 
-  // ================================
+  // ======================================
   // EDITAR TRANSACCIÓN
-  // ================================
+  // ======================================
 
   const handleEditTransaction = (
     transaction
@@ -335,9 +740,9 @@ function Dashboard({ user }) {
     setShowForm(true);
   };
 
-  // ================================
+  // ======================================
   // ELIMINAR TRANSACCIÓN
-  // ================================
+  // ======================================
 
   const handleDeleteTransaction =
     async (id) => {
@@ -346,29 +751,42 @@ function Dashboard({ user }) {
           "¿Seguro que quieres eliminar esta transacción?"
         );
 
-      if (!confirmar) return;
-
-      const { error } =
-        await supabase
-          .from("transactions")
-          .delete()
-          .eq("id", id)
-          .eq("user_id", user.id);
-
-      if (error) {
-        alert(
-          "Error al eliminar: " +
-            error.message
-        );
+      if (!confirmar) {
         return;
       }
 
-      await loadTransactions();
+      try {
+        const {
+          error,
+        } = await supabase
+          .from("transactions")
+          .delete()
+          .eq("id", id)
+          .eq(
+            "user_id",
+            user.id
+          );
+
+        if (error) {
+          throw error;
+        }
+
+        await loadTransactions();
+      } catch (error) {
+        console.error(
+          "Error eliminando transacción:",
+          error
+        );
+
+        alert(
+          "No se pudo eliminar la transacción."
+        );
+      }
     };
 
-  // ================================
-  // ABRIR FORMULARIO META
-  // ================================
+  // ======================================
+  // ABRIR FORMULARIO AHORRO
+  // ======================================
 
   const handleOpenSavingForm = () => {
     setSavingToEdit(null);
@@ -380,9 +798,9 @@ function Dashboard({ user }) {
     setShowSavingForm(true);
   };
 
-  // ================================
-  // EDITAR META
-  // ================================
+  // ======================================
+  // EDITAR AHORRO
+  // ======================================
 
   const handleEditSaving = (
     saving
@@ -404,18 +822,18 @@ function Dashboard({ user }) {
     setShowSavingForm(true);
   };
 
-  // ================================
-  // CERRAR FORMULARIO META
-  // ================================
+  // ======================================
+  // CERRAR FORMULARIO AHORRO
+  // ======================================
 
   const handleCloseSavingForm = () => {
     setShowSavingForm(false);
     setSavingToEdit(null);
   };
 
-  // ================================
-  // GUARDAR META
-  // ================================
+  // ======================================
+  // GUARDAR AHORRO
+  // ======================================
 
   const handleSaveSaving =
     async (e) => {
@@ -433,9 +851,15 @@ function Dashboard({ user }) {
         return;
       }
 
-      if (savingToEdit) {
-        const { error } =
-          await supabase
+      try {
+        // --------------------------------
+        // EDITAR
+        // --------------------------------
+
+        if (savingToEdit) {
+          const {
+            error,
+          } = await supabase
             .from("savings")
             .update({
               name: savingName,
@@ -453,18 +877,17 @@ function Dashboard({ user }) {
               user.id
             );
 
-        if (error) {
-          alert(
-            "Error al actualizar el ahorro: " +
-              error.message
-          );
+          if (error) {
+            throw error;
+          }
+        } else {
+          // --------------------------------
+          // CREAR
+          // --------------------------------
 
-          return;
-        }
-
-      } else {
-        const { error } =
-          await supabase
+          const {
+            error,
+          } = await supabase
             .from("savings")
             .insert([
               {
@@ -479,91 +902,131 @@ function Dashboard({ user }) {
               },
             ]);
 
-        if (error) {
-          alert(
-            "Error al guardar el ahorro: " +
-              error.message
-          );
-
-          return;
+          if (error) {
+            throw error;
+          }
         }
-      }
 
-      await loadSavings();
+        await loadSavings();
 
-      handleCloseSavingForm();
-    };
-
-  // ================================
-  // AGREGAR DINERO A META
-  // ================================
-
-  const addMoneyToSaving =
-    async (
-      savingId,
-      amount
-    ) => {
-      const saving =
-        savings.find(
-          (item) =>
-            item.id === savingId
-        );
-
-      if (!saving) return;
-
-      const newAmount =
-        Number(
-          saving.amount || 0
-        ) +
-        Number(amount);
-
-      const { error } =
-        await supabase
-          .from("savings")
-          .update({
-            amount: newAmount,
-          })
-          .eq(
-            "id",
-            savingId
-          )
-          .eq(
-            "user_id",
-            user.id
-          );
-
-      if (error) {
+        handleCloseSavingForm();
+      } catch (error) {
         console.error(
-          "Error al agregar dinero:",
+          "Error guardando ahorro:",
           error
         );
 
         alert(
-          "No se pudo agregar el dinero"
+          "Error al guardar el ahorro: " +
+            error.message
         );
-
-        return;
       }
-
-      setSavings(
-        (prevSavings) =>
-          prevSavings.map(
-            (item) =>
-              item.id ===
-              savingId
-                ? {
-                    ...item,
-                    amount:
-                      newAmount,
-                  }
-                : item
-          )
-      );
     };
 
-  // ================================
+  // ======================================
+  // ABRIR FORMULARIO AGREGAR DINERO
+  // ======================================
+
+  const handleOpenAddMoney = (saving) => {
+    setSavingToAddMoney(saving);
+    setAddMoneyAmount("");
+    setShowAddMoneyForm(true);
+  };
+
+  // ======================================
+  // CERRAR FORMULARIO AGREGAR DINERO
+  // ======================================
+
+  const handleCloseAddMoney = () => {
+    setShowAddMoneyForm(false);
+    setSavingToAddMoney(null);
+    setAddMoneyAmount("");
+  };
+
+  // ======================================
+  // GUARDAR DINERO AGREGADO
+  // ======================================
+
+  const handleSubmitAddMoney = async (e) => {
+    e.preventDefault();
+
+    const amount = Number(addMoneyAmount);
+
+    if (!amount || amount <= 0) {
+      alert("Ingresa un monto válido.");
+      return;
+    }
+
+    if (!savingToAddMoney) {
+      return;
+    }
+
+    await addMoneyToSaving(
+      savingToAddMoney.id,
+      amount
+    );
+
+    handleCloseAddMoney();
+  };
+
+  // ======================================
+  // AGREGAR DINERO A AHORRO
+  // ======================================
+
+  const addMoneyToSaving = async (
+    savingId,
+    amount
+  ) => {
+    const saving = savings.find(
+      (item) => item.id === savingId
+    );
+
+    if (!saving) {
+      return;
+    }
+
+    const newAmount =
+      Number(saving.amount || 0) +
+      Number(amount);
+
+    try {
+      const { error } = await supabase
+        .from("savings")
+        .update({
+          amount: newAmount,
+        })
+        .eq("id", savingId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setSavings((prevSavings) =>
+        prevSavings.map((item) =>
+          item.id === savingId
+            ? {
+                ...item,
+                amount: newAmount,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Error agregando dinero:",
+        error
+      );
+
+      alert(
+        "No se pudo agregar el dinero."
+      );
+    }
+  };
+
+  // ======================================
   // ELIMINAR META
-  // ================================
+  // ======================================
 
   const handleDeleteSaving =
     async (id) => {
@@ -572,10 +1035,14 @@ function Dashboard({ user }) {
           "¿Seguro que quieres eliminar esta meta de ahorro?"
         );
 
-      if (!confirmar) return;
+      if (!confirmar) {
+        return;
+      }
 
-      const { error } =
-        await supabase
+      try {
+        const {
+          error,
+        } = await supabase
           .from("savings")
           .delete()
           .eq("id", id)
@@ -584,54 +1051,85 @@ function Dashboard({ user }) {
             user.id
           );
 
-      if (error) {
+        if (error) {
+          throw error;
+        }
+
+        await loadSavings();
+      } catch (error) {
+        console.error(
+          "Error eliminando ahorro:",
+          error
+        );
+
         alert(
           "Error al eliminar el ahorro: " +
             error.message
         );
-
-        return;
       }
-
-      await loadSavings();
     };
 
-  // ================================
+  // ======================================
+  // NOMBRE DEL MES
+  // ======================================
+
+  const monthLabel =
+    new Date(
+      `${selectedMonth}-01T12:00:00`
+    ).toLocaleDateString(
+      "es-CL",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
+
+  // ======================================
   // PANTALLA DE CARGA
-  // ================================
+  // ======================================
 
   if (loadingTransactions) {
     return (
       <div className="dashboard">
         <div className="dashboard-container">
+
           <p>
             Cargando tus finanzas...
           </p>
+
         </div>
       </div>
     );
   }
 
-  // ================================
+  // ======================================
   // INTERFAZ
-  // ================================
+  // ======================================
 
   return (
     <div className="dashboard">
 
       <div className="dashboard-container">
 
-        {/* HEADER */}
+        {/* ==================================
+            HEADER
+        ================================== */}
 
         <header className="header">
-          <h1>💰 Mi Finanzas</h1>
+
+          <h1>
+            💰 Mi Finanzas
+          </h1>
 
           <p>
             Tu resumen financiero personal
           </p>
+
         </header>
 
-        {/* SELECTOR MES */}
+        {/* ==================================
+            SELECTOR MES
+        ================================== */}
 
         <section className="month-selector">
 
@@ -652,7 +1150,9 @@ function Dashboard({ user }) {
 
         </section>
 
-        {/* SALDO */}
+        {/* ==================================
+            SALDO DISPONIBLE
+        ================================== */}
 
         <section className="balance-card">
 
@@ -667,13 +1167,15 @@ function Dashboard({ user }) {
           </h2>
 
           <span>
-            Resumen de{" "}
+            Saldo acumulado hasta{" "}
             {monthLabel}
           </span>
 
         </section>
 
-        {/* RESUMEN */}
+        {/* ==================================
+            RESUMEN
+        ================================== */}
 
         <section className="summary-grid">
 
@@ -684,6 +1186,7 @@ function Dashboard({ user }) {
             </div>
 
             <div>
+
               <span>
                 Ingresos
               </span>
@@ -693,6 +1196,7 @@ function Dashboard({ user }) {
                   totalIngresos
                 )}
               </h3>
+
             </div>
 
           </div>
@@ -704,6 +1208,7 @@ function Dashboard({ user }) {
             </div>
 
             <div>
+
               <span>
                 Gastos
               </span>
@@ -713,13 +1218,38 @@ function Dashboard({ user }) {
                   totalGastos
                 )}
               </h3>
+
+            </div>
+
+          </div>
+
+          <div className="summary-card saving-card">
+
+            <div className="summary-icon">
+              💵
+            </div>
+
+            <div>
+
+              <span>
+                Ahorro acumulado
+              </span>
+
+              <h3>
+                {formatCurrency(
+                  totalAhorrado
+                )}
+              </h3>
+
             </div>
 
           </div>
 
         </section>
 
-        {/* CAPACIDAD DE AHORRO */}
+        {/* ==================================
+            CAPACIDAD DE AHORRO
+        ================================== */}
 
         <section className="saving-progress-card">
 
@@ -732,11 +1262,17 @@ function Dashboard({ user }) {
               </h2>
 
               <p>
-                Actualmente puedes ahorrar{" "}
+                Este mes puedes ahorrar aproximadamente{" "}
                 <strong>
-                  {porcentajeAhorro}%
-                </strong>{" "}
-                de tus ingresos.
+                  {formatCurrency(
+                    Math.max(
+                      0,
+                      ahorroDelMes
+                    )
+                  )}
+                </strong>
+                {" "}
+                ({porcentajeAhorro}% de tus ingresos).
               </p>
 
             </div>
@@ -761,19 +1297,216 @@ function Dashboard({ user }) {
 
           <div className="saving-progress-labels">
 
-            <span>0%</span>
+            <span>
+              0%
+            </span>
 
             <span>
               Meta ideal: 20%
             </span>
 
-            <span>100%</span>
+            <span>
+              100%
+            </span>
 
           </div>
 
         </section>
 
-        {/* METAS DE AHORRO */}
+        {/* ==================================
+            MI APORTE AL HOGAR
+        ================================== */}
+
+        {household && (
+
+          <section className="saving-progress-card">
+
+            <div className="saving-progress-header">
+
+              <div>
+
+                <h2>
+                  🏠 Mi aporte al hogar
+                </h2>
+
+                {loadingHousehold ? (
+
+                  <p>
+                    Cargando información...
+                  </p>
+
+                ) : (
+
+                  <>
+
+                    <p>
+
+                      En{" "}
+                      <strong>
+                        {household.name}
+                      </strong>{" "}
+                      has aportado{" "}
+                      <strong>
+                        {formatCurrency(
+                          myHouseholdPaid
+                        )}
+                      </strong>{" "}
+                      durante{" "}
+                      {monthLabel}.
+
+                    </p>
+
+                    <p
+                      style={{
+                        marginTop: "8px",
+                      }}
+                    >
+
+                      Tu parte correspondiente es{" "}
+
+                      <strong>
+                        {formatCurrency(
+                          myHouseholdShare
+                        )}
+                      </strong>
+                      .
+
+                    </p>
+
+                    <p
+                      style={{
+                        marginTop: "8px",
+                      }}
+                    >
+
+                      {householdBalanceText}
+
+                    </p>
+
+                    {householdMemberCount ===
+                      2 &&
+                      otherHouseholdMember && (
+
+                        <p
+                          style={{
+                            marginTop: "8px",
+                          }}
+                        >
+
+                          Tú:{" "}
+                          <strong>
+                            {formatCurrency(
+                              myHouseholdPaid
+                            )}
+                          </strong>
+
+                          {" • "}
+
+                          {otherMemberName}:{" "}
+
+                          <strong>
+                            {formatCurrency(
+                              otherMemberPaid
+                            )}
+                          </strong>
+
+                        </p>
+
+                      )}
+
+                  </>
+
+                )}
+
+              </div>
+
+            </div>
+
+          </section>
+
+        )}
+
+        {/* ==================================
+            RESUMEN HOGAR
+        ================================== */}
+
+        {household && (
+
+          <section className="summary-grid">
+
+            <div className="summary-card expense-card">
+
+              <div className="summary-icon">
+                🏠
+              </div>
+
+              <div>
+
+                <span>
+                  Gastos del hogar
+                </span>
+
+                <h3>
+                  {formatCurrency(
+                    totalHouseholdGastos
+                  )}
+                </h3>
+
+              </div>
+
+            </div>
+
+            <div className="summary-card income-card">
+
+              <div className="summary-icon">
+                👤
+              </div>
+
+              <div>
+
+                <span>
+                  Mi aporte
+                </span>
+
+                <h3>
+                  {formatCurrency(
+                    myHouseholdPaid
+                  )}
+                </h3>
+
+              </div>
+
+            </div>
+
+            <div className="summary-card saving-card">
+
+              <div className="summary-icon">
+                ⚖️
+              </div>
+
+              <div>
+
+                <span>
+                  Mi parte
+                </span>
+
+                <h3>
+                  {formatCurrency(
+                    myHouseholdShare
+                  )}
+                </h3>
+
+              </div>
+
+            </div>
+
+          </section>
+
+        )}
+
+        {/* ==================================
+            METAS DE AHORRO
+        ================================== */}
 
         <section className="savings-section">
 
@@ -807,7 +1540,9 @@ function Dashboard({ user }) {
 
             <div className="empty-state">
 
-              <div>🎯</div>
+              <div>
+                🎯
+              </div>
 
               <h3>
                 Aún no tienes metas de ahorro
@@ -834,19 +1569,20 @@ function Dashboard({ user }) {
                       ? Math.min(
                           100,
                           Math.round(
-                            (Number(
-                              saving.amount
-                            ) /
+                            (
+                              Number(
+                                saving.amount
+                              ) /
                               Number(
                                 saving.target_amount
-                              )) *
+                              )
+                            ) *
                               100
                           )
                         )
                       : 0;
 
                   return (
-
                     <div
                       className="saving-item"
                       key={saving.id}
@@ -861,13 +1597,18 @@ function Dashboard({ user }) {
                           </h3>
 
                           <p>
+
                             {formatCurrency(
                               saving.amount
-                            )}{" "}
+                            )}
+
+                            {" "}
                             ahorrados de{" "}
+
                             {formatCurrency(
                               saving.target_amount
                             )}
+
                           </p>
 
                         </div>
@@ -875,28 +1616,14 @@ function Dashboard({ user }) {
                         <div className="saving-item-actions">
 
                           <button
-                            className="add-money-button"
-                            onClick={() => {
-
-                              const amount =
-                                prompt(
-                                  "¿Cuánto dinero quieres agregar?"
-                                );
-
-                              if (
-                                amount &&
-                                Number(amount) > 0
-                              ) {
-                                addMoneyToSaving(
-                                  saving.id,
-                                  amount
-                                );
-                              }
-
-                            }}
-                          >
-                            💰
-                          </button>
+  className="add-money-button"
+  onClick={() =>
+    handleOpenAddMoney(saving)
+  }
+  title="Agregar dinero"
+>
+  💰
+</button>
 
                           <button
                             className="edit-button"
@@ -943,7 +1670,9 @@ function Dashboard({ user }) {
                         </span>
 
                         <strong>
+
                           Faltan{" "}
+
                           {formatCurrency(
                             Math.max(
                               0,
@@ -955,6 +1684,7 @@ function Dashboard({ user }) {
                                 )
                             )
                           )}
+
                         </strong>
 
                       </div>
@@ -965,11 +1695,14 @@ function Dashboard({ user }) {
               )}
 
             </div>
+
           )}
 
         </section>
 
-        {/* BOTONES */}
+        {/* ==================================
+            BOTONES
+        ================================== */}
 
         <section className="action-buttons">
 
@@ -979,8 +1712,13 @@ function Dashboard({ user }) {
               handleOpenForm("income")
             }
           >
-            <span>＋</span>
+
+            <span>
+              ＋
+            </span>
+
             Agregar ingreso
+
           </button>
 
           <button
@@ -989,13 +1727,20 @@ function Dashboard({ user }) {
               handleOpenForm("expense")
             }
           >
-            <span>−</span>
+
+            <span>
+              −
+            </span>
+
             Agregar gasto
+
           </button>
 
         </section>
 
-        {/* MOVIMIENTOS */}
+        {/* ==================================
+            MOVIMIENTOS PERSONALES
+        ================================== */}
 
         <section className="transactions-section">
 
@@ -1008,6 +1753,7 @@ function Dashboard({ user }) {
               </h2>
 
               <p>
+
                 {
                   monthlyTransactions.length
                 }{" "}
@@ -1017,6 +1763,7 @@ function Dashboard({ user }) {
                   ? "s"
                   : ""}{" "}
                 en {monthLabel}
+
               </p>
 
             </div>
@@ -1028,7 +1775,9 @@ function Dashboard({ user }) {
 
             <div className="empty-state">
 
-              <div>📭</div>
+              <div>
+                📭
+              </div>
 
               <h3>
                 No hay movimientos este mes
@@ -1070,7 +1819,8 @@ function Dashboard({ user }) {
                       </h3>
 
                       <p>
-                        {transaction.category} •{" "}
+                        {transaction.category}
+                        {" • "}
                         {formatDate(
                           transaction.date
                         )}
@@ -1109,6 +1859,7 @@ function Dashboard({ user }) {
                               transaction
                             )
                           }
+                          title="Editar"
                         >
                           ✏️
                         </button>
@@ -1120,6 +1871,7 @@ function Dashboard({ user }) {
                               transaction.id
                             )
                           }
+                          title="Eliminar"
                         >
                           🗑️
                         </button>
@@ -1129,17 +1881,135 @@ function Dashboard({ user }) {
                     </div>
 
                   </div>
+
                 )
               )}
 
             </div>
+
           )}
 
         </section>
 
+        {/* ==================================
+            MIS GASTOS DEL HOGAR
+        ================================== */}
+
+        {household && (
+
+          <section className="transactions-section">
+
+            <div className="transactions-header">
+
+              <div>
+
+                <h2>
+                  🏠 Mis gastos del hogar
+                </h2>
+
+                <p>
+                  Gastos que has pagado tú
+                  durante {monthLabel}
+                </p>
+
+              </div>
+
+            </div>
+
+            {monthlyHouseholdTransactions.filter(
+              (transaction) =>
+                transaction.paid_by ===
+                user?.id
+            ).length === 0 ? (
+
+              <div className="empty-state">
+
+                <div>
+                  🏠
+                </div>
+
+                <h3>
+                  No tienes gastos del hogar este mes
+                </h3>
+
+                <p>
+                  Cuando registres un gasto del hogar
+                  aparecerá aquí.
+                </p>
+
+              </div>
+
+            ) : (
+
+              <div className="transactions-list">
+
+                {monthlyHouseholdTransactions
+                  .filter(
+                    (transaction) =>
+                      transaction.paid_by ===
+                      user?.id
+                  )
+                  .map(
+                    (transaction) => (
+
+                      <div
+                        className="transaction-item"
+                        key={
+                          `household-${transaction.id}`
+                        }
+                      >
+
+                        <div className="transaction-icon">
+                          🏠
+                        </div>
+
+                        <div className="transaction-info">
+
+                          <h3>
+                            {transaction.description}
+                          </h3>
+
+                          <p>
+                            {transaction.category}
+                            {" • "}
+                            {formatDate(
+                              transaction.date
+                            )}
+                          </p>
+
+                        </div>
+
+                        <div className="transaction-actions">
+
+                          <div className="transaction-amount expense">
+
+                            −
+                            {formatCurrency(
+                              transaction.amount
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                    )
+                  )}
+
+              </div>
+
+            )}
+
+          </section>
+
+        )}
+
       </div>
 
-      {/* FORMULARIO TRANSACCIONES */}
+      {/* ====================================
+          FORMULARIO TRANSACCIÓN
+      ==================================== */}
 
       {showForm && (
 
@@ -1161,28 +2031,20 @@ function Dashboard({ user }) {
 
       )}
 
-      {/* FORMULARIO META DE AHORRO */}
+      {/* ====================================
+          FORMULARIO META DE AHORRO
+      ==================================== */}
 
       {showSavingForm && (
-
         <div className="saving-modal-overlay">
-
           <div className="saving-modal">
-
             <h2>
-
               {savingToEdit
                 ? "✏️ Editar meta"
                 : "🎯 Nueva meta de ahorro"}
-
             </h2>
 
-            <form
-              onSubmit={
-                handleSaveSaving
-              }
-            >
-
+            <form onSubmit={handleSaveSaving}>
               <label>
                 Nombre de la meta
               </label>
@@ -1192,9 +2054,7 @@ function Dashboard({ user }) {
                 placeholder="Ej: Viaje a Brasil"
                 value={savingName}
                 onChange={(e) =>
-                  setSavingName(
-                    e.target.value
-                  )
+                  setSavingName(e.target.value)
                 }
               />
 
@@ -1208,9 +2068,7 @@ function Dashboard({ user }) {
                 min="0"
                 value={savingAmount}
                 onChange={(e) =>
-                  setSavingAmount(
-                    e.target.value
-                  )
+                  setSavingAmount(e.target.value)
                 }
               />
 
@@ -1224,20 +2082,15 @@ function Dashboard({ user }) {
                 min="1"
                 value={savingTarget}
                 onChange={(e) =>
-                  setSavingTarget(
-                    e.target.value
-                  )
+                  setSavingTarget(e.target.value)
                 }
               />
 
               <div className="saving-modal-buttons">
-
                 <button
                   type="button"
                   className="expense-button"
-                  onClick={
-                    handleCloseSavingForm
-                  }
+                  onClick={handleCloseSavingForm}
                 >
                   Cancelar
                 </button>
@@ -1248,13 +2101,62 @@ function Dashboard({ user }) {
                 >
                   Guardar meta
                 </button>
-
               </div>
-
             </form>
-
           </div>
+        </div>
+      )}
 
+      {/* ====================================
+          FORMULARIO AGREGAR DINERO A META
+      ==================================== */}
+
+      {showAddMoneyForm && (
+        <div className="saving-modal-overlay">
+          <div className="saving-modal">
+            <h2>💰 Agregar dinero</h2>
+
+            {savingToAddMoney && (
+              <p style={{ marginBottom: "20px" }}>
+                Meta: <strong>{savingToAddMoney.name}</strong>
+              </p>
+            )}
+
+            <form onSubmit={handleSubmitAddMoney}>
+              <label>
+                ¿Cuánto dinero quieres agregar?
+              </label>
+
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Ej: 50000"
+                value={addMoneyAmount}
+                onChange={(e) =>
+                  setAddMoneyAmount(e.target.value)
+                }
+                autoFocus
+              />
+
+              <div className="saving-modal-buttons">
+                <button
+                  type="button"
+                  className="expense-button"
+                  onClick={handleCloseAddMoney}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="income-button"
+                >
+                  💰 Agregar dinero
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
