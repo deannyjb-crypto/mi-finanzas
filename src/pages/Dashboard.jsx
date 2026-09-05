@@ -64,6 +64,15 @@ function Dashboard({ user }) {
     useState(getTodayMonth());
 
   // ======================================
+  // ORIGEN DE LA TRANSACCIÓN
+  // ======================================
+
+  // "personal" = movimiento normal
+  // "delivery" = ingreso/gasto de Delivery
+  const [transactionSource, setTransactionSource] =
+    useState("personal");
+
+  // ======================================
   // AHORROS
   // ======================================
 
@@ -363,6 +372,19 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
     ]);
 
   // ======================================
+  // MOVIMIENTOS PERSONALES DEL MES
+  // (Delivery se muestra en su bloque propio)
+  // ======================================
+
+  const personalMonthlyTransactions = useMemo(() => {
+    return monthlyTransactions.filter(
+      (transaction) =>
+        transaction.category?.toLowerCase() !==
+        "delivery"
+    );
+  }, [monthlyTransactions]);
+
+  // ======================================
   // INGRESOS DEL MES
   // ======================================
 
@@ -397,6 +419,49 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
         0
       );
   }, [monthlyTransactions]);
+
+  // ======================================
+  // DELIVERY DEL MES
+  // ======================================
+
+  const deliveryTransactions = useMemo(() => {
+    return monthlyTransactions.filter(
+      (transaction) =>
+        transaction.category?.toLowerCase() === "delivery"
+    );
+  }, [monthlyTransactions]);
+
+  const deliveryGanado = useMemo(() => {
+    return deliveryTransactions
+      .filter(
+        (transaction) =>
+          transaction.type === "income"
+      )
+      .reduce(
+        (total, transaction) =>
+          total +
+          Number(transaction.amount || 0),
+        0
+      );
+  }, [deliveryTransactions]);
+
+  const deliveryGastado = useMemo(() => {
+    return deliveryTransactions
+      .filter(
+        (transaction) =>
+          transaction.type === "expense"
+      )
+      .reduce(
+        (total, transaction) =>
+          total +
+          Number(transaction.amount || 0),
+        0
+      );
+  }, [deliveryTransactions]);
+
+  const deliveryGanancia = useMemo(() => {
+    return deliveryGanado - deliveryGastado;
+  }, [deliveryGanado, deliveryGastado]);
 
   // ======================================
   // SALDO DISPONIBLE ACUMULADO
@@ -674,10 +739,18 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
   // ABRIR FORMULARIO TRANSACCIÓN
   // ======================================
 
-  const handleOpenForm = (type) => {
+  const handleOpenForm = (
+    type,
+    source = "personal"
+  ) => {
     setTransactionType(type);
+    setTransactionSource(source);
     setTransactionToEdit(null);
     setShowForm(true);
+  };
+
+  const handleOpenDeliveryForm = (type) => {
+    handleOpenForm(type, "delivery");
   };
 
   // ======================================
@@ -687,6 +760,7 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
   const handleCloseForm = () => {
     setShowForm(false);
     setTransactionToEdit(null);
+    setTransactionSource("personal");
   };
 
   // ======================================
@@ -706,7 +780,10 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
         user_id: user.id,
         title: transactionData.description,
         amount: Number(transactionData.amount),
-        category: transactionData.category,
+        category:
+          transactionSource === "delivery"
+            ? "Delivery"
+            : transactionData.category,
         date: transactionData.date,
         type: transactionData.type,
       };
@@ -761,6 +838,13 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
 
     setTransactionType(
       transaction.type
+    );
+
+    setTransactionSource(
+      transaction.category?.toLowerCase() ===
+        "delivery"
+        ? "delivery"
+        : "personal"
     );
 
     setShowForm(true);
@@ -1274,69 +1358,500 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
         </section>
 
         {/* ==================================
-            CAPACIDAD DE AHORRO
+            AGREGAR INGRESOS Y GASTOS
         ================================== */}
 
-        <section className="saving-progress-card">
-
+        <section
+          className="saving-progress-card"
+          style={{
+            marginTop: "20px",
+          }}
+        >
           <div className="saving-progress-header">
+            <div>
+              <h2>
+                💳 Registrar movimiento
+              </h2>
+
+              <p>
+                Agrega tus ingresos y gastos personales del mes.
+              </p>
+            </div>
+          </div>
+
+          <div className="action-buttons" style={{ marginTop: "20px" }}>
+
+            <button
+              className="income-button"
+              onClick={() =>
+                handleOpenForm("income")
+              }
+            >
+              <span>＋</span>
+              Agregar ingreso
+            </button>
+
+            <button
+              className="expense-button"
+              onClick={() =>
+                handleOpenForm("expense")
+              }
+            >
+              <span>−</span>
+              Agregar gasto
+            </button>
+
+          </div>
+
+
+        {/* ==================================
+            MOVIMIENTOS PERSONALES
+        ================================== */}
+
+        <div
+          style={{
+            marginTop: "24px",
+            borderTop: "1px solid rgba(80, 60, 120, 0.12)",
+            paddingTop: "20px",
+          }}
+        >
+
+          <div className="transactions-header">
 
             <div>
 
               <h2>
-                🎯 Tu capacidad de ahorro
+                📋 Últimos movimientos
               </h2>
 
               <p>
-                Este mes puedes ahorrar aproximadamente{" "}
-                <strong>
-                  {formatCurrency(
-                    Math.max(
-                      0,
-                      ahorroDelMes
-                    )
-                  )}
-                </strong>
-                {" "}
-                ({porcentajeAhorro}% de tus ingresos).
+
+                {
+                  personalMonthlyTransactions.length
+                }{" "}
+                movimiento
+                {personalMonthlyTransactions.length !==
+                1
+                  ? "s"
+                  : ""}{" "}
+                en {monthLabel}
+
               </p>
 
             </div>
 
-            <div className="saving-percent-big">
-              {porcentajeAhorro}%
+          </div>
+
+          {personalMonthlyTransactions.length ===
+          0 ? (
+
+            <div className="empty-state">
+
+              <div>
+                📭
+              </div>
+
+              <h3>
+                No hay movimientos personales este mes
+              </h3>
+
+              <p>
+                Agrega un ingreso o gasto
+                para comenzar.
+              </p>
+
             </div>
 
-          </div>
+          ) : (
 
-          <div className="saving-progress-bar">
+            <div className="transactions-list">
+
+              {personalMonthlyTransactions.map(
+                (transaction) => (
+
+                  <div
+                    className="transaction-item"
+                    key={transaction.id}
+                  >
+
+                    <div className="transaction-icon">
+
+                      {transaction.type ===
+                      "income"
+                        ? "💰"
+                        : "🛒"}
+
+                    </div>
+
+                    <div className="transaction-info">
+
+                      <h3>
+                        {transaction.description ||
+                          transaction.title}
+                      </h3>
+
+                      <p>
+                        {transaction.category}
+                        {" • "}
+                        {formatDate(
+                          transaction.date
+                        )}
+                      </p>
+
+                    </div>
+
+                    <div className="transaction-actions">
+
+                      <div
+                        className={
+                          transaction.type ===
+                          "income"
+                            ? "transaction-amount income"
+                            : "transaction-amount expense"
+                        }
+                      >
+
+                        {transaction.type ===
+                        "income"
+                          ? "+"
+                          : "-"}
+
+                        {formatCurrency(
+                          transaction.amount
+                        )}
+
+                      </div>
+
+                      <div className="transaction-buttons">
+
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            handleEditTransaction(
+                              transaction
+                            )
+                          }
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+
+                        <button
+                          className="delete-button"
+                          onClick={() =>
+                            handleDeleteTransaction(
+                              transaction.id
+                            )
+                          }
+                          title="Eliminar"
+                        >
+                          🗑️
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          )}
+
+        </div>
+
+        </section>
+
+        {/* ==================================
+            DELIVERY
+        ================================== */}
+
+        <section
+          className="saving-progress-card"
+          style={{
+            marginTop: "20px",
+          }}
+        >
+          <div className="saving-progress-header">
+            <div>
+              <h2>
+                🛵 Mis ingresos de Delivery
+              </h2>
+
+              <p>
+                Resumen de Delivery durante{" "}
+                {monthLabel}.
+              </p>
+            </div>
 
             <div
-              className="saving-progress-fill"
               style={{
-                width:
-                  `${porcentajeAhorro}%`,
+                fontSize: "28px",
+                fontWeight: 800,
+                color:
+                  deliveryGanancia >= 0
+                    ? "#16a34a"
+                    : "#dc2626",
               }}
-            />
-
+            >
+              {formatCurrency(
+                deliveryGanancia
+              )}
+            </div>
           </div>
 
-          <div className="saving-progress-labels">
+          <div
+            className="summary-grid"
+            style={{
+              marginTop: "20px",
+            }}
+          >
+            <div className="summary-card income-card">
+              <div className="summary-icon">
+                💰
+              </div>
 
-            <span>
-              0%
-            </span>
+              <div>
+                <span>
+                  Ganado
+                </span>
 
-            <span>
-              Meta ideal: 20%
-            </span>
+                <h3>
+                  {formatCurrency(
+                    deliveryGanado
+                  )}
+                </h3>
+              </div>
+            </div>
 
-            <span>
-              100%
-            </span>
+            <div className="summary-card expense-card">
+              <div className="summary-icon">
+                🛵
+              </div>
 
+              <div>
+                <span>
+                  Gastado
+                </span>
+
+                <h3>
+                  {formatCurrency(
+                    deliveryGastado
+                  )}
+                </h3>
+              </div>
+            </div>
+
+            <div className="summary-card saving-card">
+              <div className="summary-icon">
+                📊
+              </div>
+
+              <div>
+                <span>
+                  Ganancia neta
+                </span>
+
+                <h3
+                  style={{
+                    color:
+                      deliveryGanancia >= 0
+                        ? "#16a34a"
+                        : "#dc2626",
+                  }}
+                >
+                  {formatCurrency(
+                    deliveryGanancia
+                  )}
+                </h3>
+              </div>
+            </div>
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginTop: "20px",
+            }}
+          >
+            <button
+              type="button"
+              className="income-button"
+              onClick={() =>
+                handleOpenDeliveryForm(
+                  "income"
+                )
+              }
+            >
+              ＋ Registrar ingreso Delivery
+            </button>
+
+            <button
+              type="button"
+              className="expense-button"
+              onClick={() =>
+                handleOpenDeliveryForm(
+                  "expense"
+                )
+              }
+            >
+              − Registrar gasto Delivery
+            </button>
+          </div>
+
+          {/* ==================================
+              MOVIMIENTOS DELIVERY
+          ================================== */}
+
+          <div
+            style={{
+              marginTop: "24px",
+              borderTop: "1px solid rgba(80, 60, 120, 0.12)",
+              paddingTop: "20px",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 14px",
+                fontSize: "18px",
+                color: "#30285f",
+              }}
+            >
+              📋 Movimientos de Delivery
+            </h3>
+
+            {deliveryTransactions.length === 0 ? (
+              <p
+                style={{
+                  margin: 0,
+                  opacity: 0.7,
+                  fontSize: "14px",
+                }}
+              >
+                No hay movimientos de Delivery este mes.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {deliveryTransactions.map((transaction) => (
+                  <div
+                    key={`delivery-${transaction.id}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                      padding: "12px 14px",
+                      borderRadius: "14px",
+                      background: "rgba(248, 246, 255, 0.9)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background:
+                            transaction.type === "income"
+                              ? "#e7f8ef"
+                              : "#fdecec",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {transaction.type === "income" ? "💰" : "🛵"}
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            color: "#30285f",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {transaction.description || transaction.title || "Delivery"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            opacity: 0.7,
+                            marginTop: "3px",
+                          }}
+                        >
+                          {transaction.type === "income" ? "Ganado" : "Gasto"}
+                          {" • "}
+                          {formatDate(transaction.date)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <strong
+                        style={{
+                          color:
+                            transaction.type === "income"
+                              ? "#16a34a"
+                              : "#dc2626",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {transaction.type === "income" ? "+" : "-"}
+                        {formatCurrency(transaction.amount)}
+                      </strong>
+
+                      <button
+                        type="button"
+                        className="edit-button"
+                        onClick={() => handleEditTransaction(transaction)}
+                        title="Editar movimiento Delivery"
+                      >
+                        ✏️
+                      </button>
+
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() => handleDeleteTransaction(transaction.id)}
+                        title="Eliminar movimiento Delivery"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p
+            style={{
+              marginTop: "14px",
+              fontSize: "14px",
+              opacity: 0.75,
+            }}
+          >
+            Los movimientos de Delivery se incluyen
+            automáticamente en tus ingresos y gastos
+            generales.
+          </p>
         </section>
 
         {/* ==================================
@@ -1727,309 +2242,72 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
         </section>
 
         {/* ==================================
-            BOTONES
+            CAPACIDAD DE AHORRO
         ================================== */}
 
-        <section className="action-buttons">
+        <section className="saving-progress-card">
 
-          <button
-            className="income-button"
-            onClick={() =>
-              handleOpenForm("income")
-            }
-          >
-
-            <span>
-              ＋
-            </span>
-
-            Agregar ingreso
-
-          </button>
-
-          <button
-            className="expense-button"
-            onClick={() =>
-              handleOpenForm("expense")
-            }
-          >
-
-            <span>
-              −
-            </span>
-
-            Agregar gasto
-
-          </button>
-
-        </section>
-
-        {/* ==================================
-            MOVIMIENTOS PERSONALES
-        ================================== */}
-
-        <section className="transactions-section">
-
-          <div className="transactions-header">
+          <div className="saving-progress-header">
 
             <div>
 
               <h2>
-                Últimos movimientos
+                🎯 Tu capacidad de ahorro
               </h2>
 
               <p>
-
-                {
-                  monthlyTransactions.length
-                }{" "}
-                movimiento
-                {monthlyTransactions.length !==
-                1
-                  ? "s"
-                  : ""}{" "}
-                en {monthLabel}
-
+                Este mes puedes ahorrar aproximadamente{" "}
+                <strong>
+                  {formatCurrency(
+                    Math.max(
+                      0,
+                      ahorroDelMes
+                    )
+                  )}
+                </strong>
+                {" "}
+                ({porcentajeAhorro}% de tus ingresos).
               </p>
 
+            </div>
+
+            <div className="saving-percent-big">
+              {porcentajeAhorro}%
             </div>
 
           </div>
 
-          {monthlyTransactions.length ===
-          0 ? (
+          <div className="saving-progress-bar">
 
-            <div className="empty-state">
+            <div
+              className="saving-progress-fill"
+              style={{
+                width:
+                  `${porcentajeAhorro}%`,
+              }}
+            />
 
-              <div>
-                📭
-              </div>
+          </div>
 
-              <h3>
-                No hay movimientos este mes
-              </h3>
+          <div className="saving-progress-labels">
 
-              <p>
-                Agrega un ingreso o gasto
-                para comenzar.
-              </p>
+            <span>
+              0%
+            </span>
 
-            </div>
+            <span>
+              Meta ideal: 20%
+            </span>
 
-          ) : (
+            <span>
+              100%
+            </span>
 
-            <div className="transactions-list">
-
-              {monthlyTransactions.map(
-                (transaction) => (
-
-                  <div
-                    className="transaction-item"
-                    key={transaction.id}
-                  >
-
-                    <div className="transaction-icon">
-
-                      {transaction.type ===
-                      "income"
-                        ? "💰"
-                        : "🛒"}
-
-                    </div>
-
-                    <div className="transaction-info">
-
-                      <h3>
-                        {transaction.description ||
-                          transaction.title}
-                      </h3>
-
-                      <p>
-                        {transaction.category}
-                        {" • "}
-                        {formatDate(
-                          transaction.date
-                        )}
-                      </p>
-
-                    </div>
-
-                    <div className="transaction-actions">
-
-                      <div
-                        className={
-                          transaction.type ===
-                          "income"
-                            ? "transaction-amount income"
-                            : "transaction-amount expense"
-                        }
-                      >
-
-                        {transaction.type ===
-                        "income"
-                          ? "+"
-                          : "-"}
-
-                        {formatCurrency(
-                          transaction.amount
-                        )}
-
-                      </div>
-
-                      <div className="transaction-buttons">
-
-                        <button
-                          className="edit-button"
-                          onClick={() =>
-                            handleEditTransaction(
-                              transaction
-                            )
-                          }
-                          title="Editar"
-                        >
-                          ✏️
-                        </button>
-
-                        <button
-                          className="delete-button"
-                          onClick={() =>
-                            handleDeleteTransaction(
-                              transaction.id
-                            )
-                          }
-                          title="Eliminar"
-                        >
-                          🗑️
-                        </button>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                )
-              )}
-
-            </div>
-
-          )}
+          </div>
 
         </section>
 
-        {/* ==================================
-            MIS GASTOS DEL HOGAR
-        ================================== */}
 
-        {household && (
-
-          <section className="transactions-section">
-
-            <div className="transactions-header">
-
-              <div>
-
-                <h2>
-                  🏠 Mis gastos del hogar
-                </h2>
-
-                <p>
-                  Gastos que has pagado tú
-                  durante {monthLabel}
-                </p>
-
-              </div>
-
-            </div>
-
-            {monthlyHouseholdTransactions.filter(
-              (transaction) =>
-                transaction.paid_by ===
-                user?.id
-            ).length === 0 ? (
-
-              <div className="empty-state">
-
-                <div>
-                  🏠
-                </div>
-
-                <h3>
-                  No tienes gastos del hogar este mes
-                </h3>
-
-                <p>
-                  Cuando registres un gasto del hogar
-                  aparecerá aquí.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="transactions-list">
-
-                {monthlyHouseholdTransactions
-                  .filter(
-                    (transaction) =>
-                      transaction.paid_by ===
-                      user?.id
-                  )
-                  .map(
-                    (transaction) => (
-
-                      <div
-                        className="transaction-item"
-                        key={
-                          `household-${transaction.id}`
-                        }
-                      >
-
-                        <div className="transaction-icon">
-                          🏠
-                        </div>
-
-                        <div className="transaction-info">
-
-                          <h3>
-                            {transaction.description}
-                          </h3>
-
-                          <p>
-                            {transaction.category}
-                            {" • "}
-                            {formatDate(
-                              transaction.date
-                            )}
-                          </p>
-
-                        </div>
-
-                        <div className="transaction-actions">
-
-                          <div className="transaction-amount expense">
-
-                            −
-                            {formatCurrency(
-                              transaction.amount
-                            )}
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    )
-                  )}
-
-              </div>
-
-            )}
-
-          </section>
-
-        )}
 
       </div>
 
@@ -2053,6 +2331,7 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
           saving={
             savingTransaction
           }
+          source={transactionSource}
         />
 
       )}
