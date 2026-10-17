@@ -1006,10 +1006,17 @@ const currentUserName =
 
 
 
+    const rawAmount = transaction?.amount;
+    const parsedAmount = Number(rawAmount);
+
     setAmount(
-
-      transaction.amount?.toString() || ""
-
+      rawAmount !== null &&
+      rawAmount !== undefined &&
+      String(rawAmount).trim() !== "" &&
+      Number.isFinite(parsedAmount) &&
+      parsedAmount >= 0
+        ? String(Math.round(parsedAmount))
+        : ""
     );
 
 
@@ -1068,13 +1075,8 @@ const currentUserName =
 
 
 
-    const numericAmount =
-
-      Number(
-
-        String(amount).replace(/\D/g, "")
-
-      );
+    const cleanedAmount = String(amount ?? "").replace(/\D/g, "");
+    const numericAmount = cleanedAmount ? Number(cleanedAmount) : 0;
 
 
 
@@ -2980,21 +2982,13 @@ const currentUserName =
                 placeholder="Ej: 45.000"
 
                 value={
-
-                  amount
-
-                    ? Number(
-
-                        amount
-
-                      ).toLocaleString(
-
-                        "es-CL"
-
-                      )
-
+                  amount !== null &&
+                  amount !== undefined &&
+                  String(amount).trim() !== "" &&
+                  Number.isFinite(Number(amount)) &&
+                  Number(amount) >= 0
+                    ? Number(amount).toLocaleString("es-CL")
                     : ""
-
                 }
 
                 onChange={(e) => {
