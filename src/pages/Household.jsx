@@ -1072,7 +1072,7 @@ const currentUserName =
 
       Number(
 
-        String(amount).replace(/D/g, "")
+        String(amount).replace(/\D/g, "")
 
       );
 
@@ -3003,7 +3003,7 @@ const currentUserName =
 
                     e.target.value.replace(
 
-                      /D/g,
+                      /\D/g,
 
                       ""
 
