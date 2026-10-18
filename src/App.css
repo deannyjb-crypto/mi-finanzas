@@ -778,6 +778,45 @@ body {
   margin: 0;
 }
 
+.saving-modal .recurring-settings {
+  margin: -4px 0 18px;
+}
+
+.saving-modal .recurring-settings p {
+  margin: -12px 0 14px;
+  color: #777391;
+  font-size: 13px;
+}
+
+.saving-modal .recurring-help-text {
+  margin: -14px 0 18px;
+  color: #777391;
+  font-size: 13px;
+}
+
+.saving-modal .recurring-settings input {
+  margin-bottom: 16px;
+}
+
+.skipped-transaction {
+  opacity: 0.62;
+}
+
+.recurrence-status {
+  color: #7151ba;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.skip-button,
+.restore-button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: #f0edff;
+  cursor: pointer;
+}
+
 .saving-modal-buttons {
   display: flex;
   gap: 12px;

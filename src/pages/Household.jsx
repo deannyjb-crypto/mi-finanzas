@@ -50,6 +50,14 @@ const formatDate = (date) => {
 
 };
 
+const getNextMonth = (month) => {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const nextMonthDate = new Date(year, monthNumber, 1);
+  return `${nextMonthDate.getFullYear()}-${String(
+    nextMonthDate.getMonth() + 1
+  ).padStart(2, "0")}`;
+};
+
 
 
 // ========================================
@@ -177,6 +185,10 @@ function Household({ user }) {
   const [category, setCategory] = useState("Hogar");
 
   const [isRecurring, setIsRecurring] = useState(false);
+
+  const [amountEffectiveMonth, setAmountEffectiveMonth] = useState("");
+
+  const [recurringDay, setRecurringDay] = useState("");
 
 
 
@@ -997,6 +1009,11 @@ const currentUserName =
 
     setIsRecurring(false);
 
+    setAmountEffectiveMonth("");
+
+    const today = new Date().toISOString().split("T")[0];
+    setRecurringDay(String(Number(today.slice(8, 10))));
+
 
 
     setDate(
@@ -1062,14 +1079,22 @@ const currentUserName =
 
     setIsRecurring(Boolean(transaction.is_recurring));
 
+    if (transaction.is_recurring && !transaction.recurring_parent_id) {
+      const sourceMonth = transaction.date?.slice(0, 7);
+      setAmountEffectiveMonth(
+        selectedMonth > sourceMonth ? selectedMonth : getNextMonth(sourceMonth)
+      );
+    } else {
+      setAmountEffectiveMonth("");
+    }
 
 
-    setDate(
 
-      transaction.date ||
-
-        new Date().toISOString().split("T")[0]
-
+    const transactionDate =
+      transaction.date || new Date().toISOString().split("T")[0];
+    setDate(transactionDate);
+    setRecurringDay(
+      String(transaction.recurring_day || Number(transactionDate.slice(8, 10)))
     );
 
 
@@ -1141,6 +1166,16 @@ const currentUserName =
 
     }
 
+    if (
+      isRecurring &&
+      (!Number.isInteger(Number(recurringDay)) ||
+        Number(recurringDay) < 1 ||
+        Number(recurringDay) > 31)
+    ) {
+      alert("Elige un día válido entre 1 y 31.");
+      return;
+    }
+
 
 
     try {
@@ -1170,6 +1205,8 @@ const currentUserName =
           date,
 
           is_recurring: isRecurring,
+
+          recurring_day: isRecurring ? Number(recurringDay) : null,
 
         };
 
@@ -1201,6 +1238,11 @@ const currentUserName =
 
         // --------------------------------
 
+        const isRecurringTemplate =
+          transactionToEdit.is_recurring &&
+          !transactionToEdit.recurring_parent_id &&
+          isRecurring;
+
 
 
         const {
@@ -1215,13 +1257,17 @@ const currentUserName =
 
             description: cleanDescription,
 
-            amount: numericAmount,
+            amount: isRecurringTemplate
+              ? transactionToEdit.amount
+              : numericAmount,
 
             category,
 
             date,
 
             is_recurring: isRecurring,
+
+            recurring_day: isRecurring ? Number(recurringDay) : null,
 
           })
 
@@ -1249,6 +1295,27 @@ const currentUserName =
 
         }
 
+        if (
+          isRecurringTemplate &&
+          numericAmount !== Number(transactionToEdit.amount)
+        ) {
+          if (!amountEffectiveMonth) {
+            throw new Error("Selecciona desde qué mes aplicar el nuevo monto.");
+          }
+
+          const { error: amountChangeError } = await supabase.rpc(
+            "set_household_recurring_amount",
+            {
+              p_household_id: household.id,
+              p_recurring_parent_id: transactionToEdit.id,
+              p_effective_month: `${amountEffectiveMonth}-01`,
+              p_amount: numericAmount,
+            }
+          );
+
+          if (amountChangeError) throw amountChangeError;
+        }
+
       }
 
 
@@ -1268,6 +1335,10 @@ const currentUserName =
       setCategory("Hogar");
 
       setIsRecurring(false);
+
+      setAmountEffectiveMonth("");
+
+      setRecurringDay("");
 
 
 
@@ -1318,6 +1389,22 @@ const currentUserName =
   // ELIMINAR GASTO
 
   // ======================================
+
+  const handleToggleSkippedTransaction = async (transaction) => {
+    try {
+      const { error } = await supabase
+        .from("household_transactions")
+        .update({ is_skipped: !transaction.is_skipped })
+        .eq("id", transaction.id)
+        .eq("household_id", household.id);
+
+      if (error) throw error;
+      await loadHousehold();
+    } catch (error) {
+      console.error("Error actualizando gasto del mes:", error);
+      alert("No se pudo actualizar este gasto: " + (error?.message || "Error desconocido"));
+    }
+  };
 
 
 
@@ -1419,11 +1506,15 @@ const currentUserName =
 
 
 
-  const monthlyTransactions = useMemo(() => {
+  const allMonthlyTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
       return transaction.date?.slice(0, 7) === selectedMonth;
     });
   }, [transactions, selectedMonth]);
+
+  const monthlyTransactions = useMemo(() => {
+    return allMonthlyTransactions.filter((transaction) => !transaction.is_skipped);
+  }, [allMonthlyTransactions]);
 
   const totalGastos = useMemo(() => {
     return monthlyTransactions.reduce(
@@ -2534,7 +2625,7 @@ const currentUserName =
 
 
 
-          {monthlyTransactions.length === 0 ? (
+          {allMonthlyTransactions.length === 0 ? (
 
 
 
@@ -2578,7 +2669,7 @@ const currentUserName =
 
 
 
-              {monthlyTransactions.map(
+              {allMonthlyTransactions.map(
 
                 (transaction) => (
 
@@ -2586,7 +2677,11 @@ const currentUserName =
 
                   <div
 
-                    className="transaction-item"
+                    className={
+                      transaction.is_skipped
+                        ? "transaction-item skipped-transaction"
+                        : "transaction-item"
+                    }
 
                     key={transaction.id}
 
@@ -2611,6 +2706,16 @@ const currentUserName =
                         {transaction.description}
 
                       </h3>
+
+                      {transaction.is_skipped ? (
+                        <p className="recurrence-status">Omitido este mes</p>
+                      ) : transaction.recurring_parent_id ? (
+                        <p className="recurrence-status">Gasto recurrente</p>
+                      ) : transaction.is_recurring ? (
+                        <p className="recurrence-status">
+                          Gasto fijo · Día {transaction.recurring_day || Number(transaction.date?.slice(8, 10))}
+                        </p>
+                      ) : null}
 
 
 
@@ -2676,7 +2781,7 @@ const currentUserName =
 
 
 
-                        <button
+                        {!transaction.is_skipped && <button
 
                           className="edit-button"
 
@@ -2695,28 +2800,27 @@ const currentUserName =
                           ✏️
 
                         </button>
+                        }
 
 
 
-                        <button
-
-                          className="delete-button"
-
-                          onClick={() =>
-
-                            handleDeleteTransaction(
-
-                              transaction.id
-
-                            )
-
-                          }
-
-                        >
-
-                          🗑️
-
-                        </button>
+                        {transaction.recurring_parent_id ? (
+                          <button
+                            className={transaction.is_skipped ? "restore-button" : "skip-button"}
+                            title={transaction.is_skipped ? "Restaurar este mes" : "Omitir este mes"}
+                            aria-label={transaction.is_skipped ? "Restaurar este mes" : "Omitir este mes"}
+                            onClick={() => handleToggleSkippedTransaction(transaction)}
+                          >
+                            {transaction.is_skipped ? "↩️" : "⏭️"}
+                          </button>
+                        ) : (
+                          !transaction.is_skipped && <button
+                            className="delete-button"
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                          >
+                            🗑️
+                          </button>
+                        )}
 
 
 
@@ -3170,15 +3274,14 @@ const currentUserName =
 
                 value={date}
 
-                onChange={(e) =>
-
-                  setDate(
-
-                    e.target.value
-
-                  )
-
-                }
+                onChange={(event) => {
+                  setDate(event.target.value);
+                  if (event.target.value) {
+                    setRecurringDay(
+                      String(Number(event.target.value.slice(8, 10)))
+                    );
+                  }
+                }}
 
               />
 
@@ -3188,10 +3291,48 @@ const currentUserName =
                 <input
                   type="checkbox"
                   checked={isRecurring}
+                  disabled={Boolean(transactionToEdit?.recurring_parent_id)}
                   onChange={(event) => setIsRecurring(event.target.checked)}
                 />
                 Repetir este gasto todos los meses
               </label>
+
+              {transactionToEdit?.recurring_parent_id && (
+                <p className="recurring-help-text">
+                  La repetición se administra desde el gasto fijo original.
+                </p>
+              )}
+
+              {isRecurring && (
+                <div className="recurring-settings">
+                  <label htmlFor="recurring-day">Día de repetición</label>
+                  <input
+                    id="recurring-day"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={recurringDay}
+                    onChange={(event) => setRecurringDay(event.target.value)}
+                  />
+                  <p>Si un mes no tiene ese día, se usará su último día.</p>
+                </div>
+              )}
+
+              {transactionToEdit?.is_recurring &&
+                !transactionToEdit.recurring_parent_id && isRecurring && (
+                  <div className="recurring-settings">
+                    <label htmlFor="amount-effective-month">
+                      Aplicar el nuevo monto desde
+                    </label>
+                    <input
+                      id="amount-effective-month"
+                      type="month"
+                      value={amountEffectiveMonth}
+                      onChange={(event) => setAmountEffectiveMonth(event.target.value)}
+                    />
+                    <p>Los meses anteriores conservan el monto registrado.</p>
+                  </div>
+                )}
 
               <div className="saving-modal-buttons">
 
