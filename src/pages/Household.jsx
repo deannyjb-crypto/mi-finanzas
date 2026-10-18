@@ -2215,11 +2215,11 @@ const currentUserName =
 
 
 
-        <section className="savings-section">
+        <details className="savings-section household-members-details">
 
 
 
-          <div className="savings-header">
+          <summary className="savings-header household-members-summary">
 
 
 
@@ -2229,7 +2229,7 @@ const currentUserName =
 
               <h2>
 
-                👥 Miembros del hogar
+                👥 Miembros del hogar ({memberCount})
 
               </h2>
 
@@ -2248,6 +2248,16 @@ const currentUserName =
             </div>
 
 
+
+          </summary>
+
+
+
+          <div className="household-members-content">
+
+          <div className="savings-header household-members-actions">
+
+            <div />
 
             <button
 
@@ -2353,57 +2363,11 @@ const currentUserName =
 
 
 
-        </section>
+          </div>
 
 
 
-        {/* ==================================
-
-            MI APORTE
-
-        ================================== */}
-
-
-
-        <section className="balance-card">
-
-
-
-          <p>
-
-            Mi aporte al hogar
-
-          </p>
-
-
-
-          <h2>
-
-            {formatCurrency(
-
-              myTotalPaid
-
-            )}
-
-          </h2>
-
-
-
-          <span>
-
-            De un total de{" "}
-
-            {formatCurrency(
-
-              totalGastos
-
-            )}
-
-          </span>
-
-
-
-        </section>
+        </details>
 
 
 
@@ -2526,6 +2490,56 @@ const currentUserName =
 
 
           </div>
+
+
+
+        </section>
+
+
+
+        {/* ==================================
+
+            MI APORTE
+
+        ================================== */}
+
+
+
+        <section className="balance-card">
+
+
+
+          <p>
+
+            Mi aporte al hogar
+
+          </p>
+
+
+
+          <h2>
+
+            {formatCurrency(
+
+              myTotalPaid
+
+            )}
+
+          </h2>
+
+
+
+          <span>
+
+            De un total de{" "}
+
+            {formatCurrency(
+
+              totalGastos
+
+            )}
+
+          </span>
 
 
 

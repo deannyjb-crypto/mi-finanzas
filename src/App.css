@@ -598,6 +598,39 @@ body {
   box-shadow: 0 8px 30px rgba(48, 39, 91, 0.08);
 }
 
+.household-members-summary {
+  list-style: none;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.household-members-summary::-webkit-details-marker {
+  display: none;
+}
+
+.household-members-summary::after {
+  content: "＋";
+  color: #6b5bd2;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.household-members-details[open] .household-members-summary {
+  margin-bottom: 25px;
+}
+
+.household-members-details[open] .household-members-summary::after {
+  content: "−";
+}
+
+.household-members-actions {
+  margin-bottom: 20px;
+}
+
+.household-members-content .transactions-list {
+  margin-bottom: 0;
+}
+
 .savings-header {
   display: flex;
   justify-content: space-between;
