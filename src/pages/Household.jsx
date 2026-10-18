@@ -176,6 +176,8 @@ function Household({ user }) {
 
   const [category, setCategory] = useState("Hogar");
 
+  const [isRecurring, setIsRecurring] = useState(false);
+
 
 
   const [date, setDate] = useState(
@@ -503,6 +505,58 @@ const currentUserName =
     loadHousehold();
 
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!household?.id || !selectedMonth || transactions.length === 0) return;
+
+    const recurringTransactions = transactions.filter((transaction) => {
+      return transaction.is_recurring && transaction.date?.slice(0, 7) < selectedMonth;
+    });
+
+    if (recurringTransactions.length === 0) return;
+
+    let cancelled = false;
+
+    const createMonthlyTransactions = async () => {
+      const generatedTransactions = recurringTransactions.map((transaction) => {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        const originalDay = Number(transaction.date.slice(8, 10));
+        const day = Math.min(originalDay, new Date(year, month, 0).getDate());
+
+        return {
+          household_id: household.id,
+          paid_by: transaction.paid_by,
+          description: transaction.description,
+          amount: transaction.amount,
+          category: transaction.category,
+          date: `${selectedMonth}-${String(day).padStart(2, "0")}`,
+          recurring_parent_id: transaction.id,
+          recurring_month: `${selectedMonth}-01`,
+        };
+      });
+
+      const { data, error } = await supabase
+        .from("household_transactions")
+        .upsert(generatedTransactions, {
+          onConflict: "recurring_parent_id,recurring_month",
+          ignoreDuplicates: true,
+        })
+        .select("id");
+
+      if (error) {
+        console.error("Error creando gastos mensuales:", error);
+        return;
+      }
+
+      if (!cancelled && data?.length) await loadHousehold();
+    };
+
+    createMonthlyTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [household?.id, selectedMonth, transactions]);
 
 
 
@@ -964,6 +1018,8 @@ const currentUserName =
 
     setCategory("Hogar");
 
+    setIsRecurring(false);
+
 
 
     setDate(
@@ -1026,6 +1082,8 @@ const currentUserName =
       transaction.category || "Hogar"
 
     );
+
+    setIsRecurring(Boolean(transaction.is_recurring));
 
 
 
@@ -1134,6 +1192,8 @@ const currentUserName =
 
           date,
 
+          is_recurring: isRecurring,
+
         };
 
 
@@ -1184,6 +1244,8 @@ const currentUserName =
 
             date,
 
+            is_recurring: isRecurring,
+
           })
 
           .eq(
@@ -1227,6 +1289,8 @@ const currentUserName =
       setAmount("");
 
       setCategory("Hogar");
+
+      setIsRecurring(false);
 
 
 
@@ -3142,6 +3206,15 @@ const currentUserName =
               />
 
 
+
+              <label className="recurring-expense-option">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(event) => setIsRecurring(event.target.checked)}
+                />
+                Repetir este gasto todos los meses
+              </label>
 
               <div className="saving-modal-buttons">
 

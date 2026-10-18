@@ -766,6 +766,18 @@ body {
   border-color: #8864cf;
 }
 
+.saving-modal .recurring-expense-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.saving-modal .recurring-expense-option input {
+  width: auto;
+  margin: 0;
+}
+
 .saving-modal-buttons {
   display: flex;
   gap: 12px;
