@@ -511,28 +511,6 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
   ]);
 
   // ======================================
-  // AHORRO DEL MES / CAPACIDAD DE AHORRO
-  // ======================================
-
-  const ahorroDelMes =
-    totalIngresos - totalGastos;
-
-  const porcentajeAhorro =
-    totalIngresos > 0
-      ? Math.max(
-          0,
-          Math.min(
-            100,
-            Math.round(
-              (ahorroDelMes /
-                totalIngresos) *
-                100
-            )
-          )
-        )
-      : 0;
-
-  // ======================================
   // AHORRO ACUMULADO EN METAS
   // ======================================
 
@@ -2240,74 +2218,6 @@ const [addMoneyAmount, setAddMoneyAmount] = useState("");
           )}
 
         </section>
-
-        {/* ==================================
-            CAPACIDAD DE AHORRO
-        ================================== */}
-
-        <section className="saving-progress-card">
-
-          <div className="saving-progress-header">
-
-            <div>
-
-              <h2>
-                🎯 Tu capacidad de ahorro
-              </h2>
-
-              <p>
-                Este mes puedes ahorrar aproximadamente{" "}
-                <strong>
-                  {formatCurrency(
-                    Math.max(
-                      0,
-                      ahorroDelMes
-                    )
-                  )}
-                </strong>
-                {" "}
-                ({porcentajeAhorro}% de tus ingresos).
-              </p>
-
-            </div>
-
-            <div className="saving-percent-big">
-              {porcentajeAhorro}%
-            </div>
-
-          </div>
-
-          <div className="saving-progress-bar">
-
-            <div
-              className="saving-progress-fill"
-              style={{
-                width:
-                  `${porcentajeAhorro}%`,
-              }}
-            />
-
-          </div>
-
-          <div className="saving-progress-labels">
-
-            <span>
-              0%
-            </span>
-
-            <span>
-              Meta ideal: 20%
-            </span>
-
-            <span>
-              100%
-            </span>
-
-          </div>
-
-        </section>
-
-
 
       </div>
 
