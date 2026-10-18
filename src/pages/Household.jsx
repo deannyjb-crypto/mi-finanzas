@@ -509,46 +509,23 @@ const currentUserName =
   useEffect(() => {
     if (!household?.id || !selectedMonth || transactions.length === 0) return;
 
-    const recurringTransactions = transactions.filter((transaction) => {
-      return transaction.is_recurring && transaction.date?.slice(0, 7) < selectedMonth;
-    });
-
-    if (recurringTransactions.length === 0) return;
-
     let cancelled = false;
 
     const createMonthlyTransactions = async () => {
-      const generatedTransactions = recurringTransactions.map((transaction) => {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        const originalDay = Number(transaction.date.slice(8, 10));
-        const day = Math.min(originalDay, new Date(year, month, 0).getDate());
-
-        return {
-          household_id: household.id,
-          paid_by: transaction.paid_by,
-          description: transaction.description,
-          amount: transaction.amount,
-          category: transaction.category,
-          date: `${selectedMonth}-${String(day).padStart(2, "0")}`,
-          recurring_parent_id: transaction.id,
-          recurring_month: `${selectedMonth}-01`,
-        };
-      });
-
-      const { data, error } = await supabase
-        .from("household_transactions")
-        .upsert(generatedTransactions, {
-          onConflict: "recurring_parent_id,recurring_month",
-          ignoreDuplicates: true,
-        })
-        .select("id");
+      const { data, error } = await supabase.rpc(
+        "generate_household_recurring_transactions",
+        {
+          p_household_id: household.id,
+          p_month: `${selectedMonth}-01`,
+        }
+      );
 
       if (error) {
         console.error("Error creando gastos mensuales:", error);
         return;
       }
 
-      if (!cancelled && data?.length) await loadHousehold();
+      if (!cancelled && data > 0) await loadHousehold();
     };
 
     createMonthlyTransactions();
